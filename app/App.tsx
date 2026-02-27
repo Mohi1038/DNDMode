@@ -1,41 +1,21 @@
 import React from 'react';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import LoginScreen from './src/screens/LoginScreen';
+import ProfilingFlow from './src/screens/ProfilingFlow';
+import MainLandingPage from './src/screens/MainLandingPage';
+import { useOnboardingStore } from './src/store/useOnboardingStore';
 
 function App() {
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>DND Mode</Text>
-        <Text style={styles.subtitle}>Welcome to your app</Text>
-      </View>
-    </SafeAreaView>
-  );
-}
+  const { tempJwt, isOnboarded } = useOnboardingStore();
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: '#F4F6F8',
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#4B5563',
-    textAlign: 'center',
-  },
-});
+  if (isOnboarded) {
+    return <MainLandingPage />;
+  }
+
+  if (tempJwt) {
+    return <ProfilingFlow />;
+  }
+
+  return <LoginScreen />;
+}
 
 export default App;
