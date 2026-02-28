@@ -83,7 +83,11 @@ class SpeechToTextModule(
         restoreBeepSound()
 
         context.currentActivity?.runOnUiThread {
-            speechRecognizer?.stopListening()
+            try {
+                speechRecognizer?.stopListening()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error stopping listener: ${e.message}")
+            }
         }
     }
 
@@ -94,10 +98,21 @@ class SpeechToTextModule(
         restoreBeepSound()
 
         context.currentActivity?.runOnUiThread {
-            speechRecognizer?.destroy()
+            try {
+                speechRecognizer?.destroy()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error destroying recognizer: ${e.message}")
+            }
             speechRecognizer = null
         }
     }
+
+    // Required by NativeEventEmitter to suppress warnings
+    @ReactMethod
+    fun addListener(eventName: String) { /* no-op */ }
+
+    @ReactMethod
+    fun removeListeners(count: Int) { /* no-op */ }
 
     private fun muteBeepSound() {
         try {

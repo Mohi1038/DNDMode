@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
-    Animated, Easing, Vibration, Platform
+    Animated, Easing, Vibration, Platform, NativeModules, Alert
 } from 'react-native';
+import { speechService } from '../services/speechService';
+
+const { FocusModeModule, NotificationModule } = NativeModules;
 
 interface FocusModeScreenProps {
     durationMinutes: number;
@@ -13,7 +16,6 @@ interface FocusModeScreenProps {
 // Minimal Haptic Feedback helper
 const triggerHaptic = () => {
     if (Platform.OS === 'ios') {
-        // Simple vibration pattern for micro-haptic
         Vibration.vibrate(10);
     } else {
         Vibration.vibrate(20);
@@ -23,6 +25,9 @@ const triggerHaptic = () => {
 export default function FocusModeScreen({ durationMinutes, participants = [], onEndFocus }: FocusModeScreenProps) {
     const [timeLeftRemaining, setTimeLeftRemaining] = useState(durationMinutes * 60);
     const [isListening, setIsListening] = useState(false);
+    const [transcription, setTranscription] = useState('Say "Hey Diddy" to activate...');
+    const [sessionActive, setSessionActive] = useState(false);
+    const [wakeDetected, setWakeDetected] = useState(false);
 
     // Core Animations
     const timerGlowAnim = useRef(new Animated.Value(1)).current;
@@ -33,15 +38,137 @@ export default function FocusModeScreen({ durationMinutes, participants = [], on
     const textFadeAnim = useRef(new Animated.Value(1)).current;
     const textSlideAnim = useRef(new Animated.Value(0)).current;
 
-    // Timer Logic
+    // ─── Permission Checks ──────────────────────────────────────────────
+
+    const checkAndPromptPermissions = useCallback(async () => {
+        // 1. Check Accessibility Service (required for app blocking)
+        try {
+            const accessibilityEnabled = await FocusModeModule.isAccessibilityEnabled();
+            if (!accessibilityEnabled) {
+                Alert.alert(
+                    'App Blocker Needs Permission',
+                    'The Accessibility Service must be enabled for app blocking to work. Open Settings and enable "DND Mode App Blocker".',
+                    [
+                        { text: 'Open Settings', onPress: () => FocusModeModule.openAccessibilitySettings() },
+                        { text: 'Skip', style: 'cancel' },
+                    ]
+                );
+            }
+        } catch (e) {
+            console.warn('[FocusSession] Could not check accessibility:', e);
+        }
+
+        // 2. Check Notification Listener (required for notification capture)
+        try {
+            const listenerEnabled = await NotificationModule.isListenerEnabled();
+            if (!listenerEnabled) {
+                Alert.alert(
+                    'Notification Access Required',
+                    'Enable notification listener access so the app can capture and process notifications during focus mode.',
+                    [
+                        { text: 'Open Settings', onPress: () => NotificationModule.openListenerSettings() },
+                        { text: 'Skip', style: 'cancel' },
+                    ]
+                );
+            }
+        } catch (e) {
+            console.warn('[FocusSession] Could not check notification listener:', e);
+        }
+    }, []);
+
+    // ─── Start / Stop Native Modules ────────────────────────────────────
+
+    const startSession = useCallback(async () => {
+        // Check permissions and prompt if needed
+        await checkAndPromptPermissions();
+
+        // 1. Start Focus Mode (app blocking + notification muting)
+        try {
+            await FocusModeModule.startFocusSession();
+            console.log('[FocusSession] App blocking + notification muting enabled');
+        } catch (e) {
+            console.warn('[FocusSession] Failed to start focus mode:', e);
+        }
+
+        // 2. Start Speech Service (wake word detection + voice commands)
+        try {
+            const started = await speechService.startSTT(
+                // onWake: called when "hey diddy" is detected
+                () => {
+                    setWakeDetected(true);
+                    setTranscription('Wake word detected! Listening for command...');
+                    triggerHaptic();
+                },
+                // onCommand: called when a command is captured after wake word
+                (command: string) => {
+                    setTranscription(`Command: "${command}"`);
+                    setWakeDetected(false);
+                    // After a moment, reset to waiting for wake word
+                    setTimeout(() => {
+                        setTranscription('Say "Hey Diddy" to activate...');
+                    }, 3000);
+                },
+                // onError
+                (error) => {
+                    console.warn('[FocusSession] Speech error:', error.code, error.message);
+                },
+            );
+            setIsListening(started);
+            console.log('[FocusSession] Speech service started:', started);
+        } catch (e) {
+            console.warn('[FocusSession] Failed to start speech service:', e);
+        }
+
+        // 3. Notification Listener is a system service — it's always on if enabled
+        console.log('[FocusSession] Notification listener active (if enabled in settings)');
+
+        setSessionActive(true);
+    }, [checkAndPromptPermissions]);
+
+    const endSession = useCallback(async () => {
+        if (!sessionActive) return;
+        setSessionActive(false);
+
+        try {
+            speechService.stopSTT();
+            setIsListening(false);
+            setWakeDetected(false);
+            console.log('[FocusSession] Speech service stopped');
+        } catch (e) {
+            console.warn('[FocusSession] Failed to stop speech service:', e);
+        }
+
+        try {
+            await FocusModeModule.stopFocusSession();
+            console.log('[FocusSession] App blocking + notification muting disabled');
+        } catch (e) {
+            console.warn('[FocusSession] Failed to stop focus mode:', e);
+        }
+
+        onEndFocus();
+    }, [sessionActive, onEndFocus]);
+
+    // ─── Mount / Unmount Lifecycle ───────────────────────────────────────
+
+    useEffect(() => {
+        startSession();
+
+        return () => {
+            // Cleanup on unmount — stop everything
+            speechService.stopSTT();
+            FocusModeModule.stopFocusSession().catch(() => { });
+        };
+    }, []);
+
+    // ─── Timer Logic ────────────────────────────────────────────────────
+
     useEffect(() => {
         const interval = setInterval(() => {
             setTimeLeftRemaining((prev) => {
                 if (prev <= 1) {
                     clearInterval(interval);
                     triggerHaptic();
-                    // Cinematic fade out before ending
-                    setTimeout(() => onEndFocus(), 1000);
+                    setTimeout(() => endSession(), 1000);
                     return 0;
                 }
                 return prev - 1;
@@ -67,12 +194,42 @@ export default function FocusModeScreen({ durationMinutes, participants = [], on
         ).start();
 
         return () => clearInterval(interval);
-    }, [onEndFocus]);
+    }, [endSession]);
+
+    // ─── Voice Orb Toggle (mid-session mic on/off) ──────────────────────
+
+    const handleToggleMic = async () => {
+        triggerHaptic();
+        if (isListening) {
+            speechService.stopSTT();
+            setIsListening(false);
+            setWakeDetected(false);
+            setTranscription('');
+        } else {
+            const started = await speechService.startSTT(
+                () => {
+                    setWakeDetected(true);
+                    setTranscription('Wake word detected! Listening for command...');
+                    triggerHaptic();
+                },
+                (command: string) => {
+                    setTranscription(`Command: "${command}"`);
+                    setWakeDetected(false);
+                    setTimeout(() => {
+                        setTranscription('Say "Hey Diddy" to activate...');
+                    }, 3000);
+                },
+                (error) => {
+                    console.warn('[FocusSession] Speech error:', error.code, error.message);
+                },
+            );
+            setIsListening(started);
+        }
+    };
 
     // Listening State Animations
     useEffect(() => {
         if (isListening) {
-            // Text transition animation: fade out, slide up, change text, fade in
             Animated.sequence([
                 Animated.parallel([
                     Animated.timing(textFadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
@@ -84,7 +241,6 @@ export default function FocusModeScreen({ durationMinutes, participants = [], on
                 ])
             ]).start();
 
-            // Intense pulsing for voice active
             Animated.loop(
                 Animated.parallel([
                     Animated.sequence([
@@ -98,14 +254,7 @@ export default function FocusModeScreen({ durationMinutes, participants = [], on
                     ])
                 ])
             ).start();
-
-            // Auto-stop after 5 seconds
-            const timeout = setTimeout(() => {
-                handleStopListening();
-            }, 5000);
-            return () => clearTimeout(timeout);
         } else {
-            // Text transition back
             Animated.sequence([
                 Animated.parallel([
                     Animated.timing(textFadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
@@ -117,7 +266,6 @@ export default function FocusModeScreen({ durationMinutes, participants = [], on
                 ])
             ]).start();
 
-            // Reset pulse animations smoothly
             Animated.parallel([
                 Animated.timing(pulseAnim1, { toValue: 1, duration: 300, useNativeDriver: true }),
                 Animated.timing(pulseAnim2, { toValue: 1, duration: 300, useNativeDriver: true }),
@@ -125,13 +273,7 @@ export default function FocusModeScreen({ durationMinutes, participants = [], on
         }
     }, [isListening]);
 
-    const handleStopListening = () => {
-        setIsListening(false);
-        triggerHaptic();
-    };
-
     const handleToggleVoiceIn = () => {
-        triggerHaptic();
         Animated.timing(buttonScaleAnim, {
             toValue: 0.9,
             duration: 100,
@@ -141,7 +283,7 @@ export default function FocusModeScreen({ durationMinutes, participants = [], on
     };
 
     const handleToggleVoiceOut = () => {
-        setIsListening(!isListening);
+        handleToggleMic();
         Animated.spring(buttonScaleAnim, {
             toValue: 1,
             friction: 4,
@@ -173,7 +315,7 @@ export default function FocusModeScreen({ durationMinutes, participants = [], on
             {/* Header: End Early Chip */}
             <View style={styles.header}>
                 <TouchableOpacity
-                    onPress={() => { triggerHaptic(); onEndFocus(); }}
+                    onPress={() => { triggerHaptic(); endSession(); }}
                     style={styles.endButton}
                     activeOpacity={0.6}
                 >
@@ -214,7 +356,9 @@ export default function FocusModeScreen({ durationMinutes, participants = [], on
                 <View style={styles.transcriptionBox}>
                     <Animated.View style={{ opacity: textFadeAnim, transform: [{ translateY: textSlideAnim }] }}>
                         <Text style={[styles.transcriptionText, isListening && styles.transcriptionTextActive]}>
-                            {isListening ? "Listening..." : "Assistant is standing by."}
+                            {isListening
+                                ? (transcription || 'Listening...')
+                                : 'Tap the mic to speak.'}
                         </Text>
                     </Animated.View>
                 </View>

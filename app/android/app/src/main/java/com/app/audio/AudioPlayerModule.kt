@@ -31,7 +31,7 @@ class AudioPlayerModule(
                 setAudioAttributes(
                     AudioAttributes.Builder()
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setUsage(AudioAttributes.USAGE_ASSISTANT)
                         .build()
                 )
 
