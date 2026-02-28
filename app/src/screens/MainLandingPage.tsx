@@ -8,7 +8,7 @@ import { useOnboardingStore } from '../store/useOnboardingStore';
 import { API_CONFIG } from '../config/apiConfig';
 
 // Safe wrapper: check if the NATIVE module exists before using the JS wrapper
-const _imagePickerAvailable = !!NativeModules.ImagePickerModule;
+const _imagePickerAvailable = !!NativeModules.ImagePicker;
 let _launchImageLibrary: any = null;
 if (_imagePickerAvailable) {
     try {
