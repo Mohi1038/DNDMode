@@ -20,8 +20,6 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const AI_HOST = process.env.AI_SERVER_HOST || 'not set';
-const AI_PORT = process.env.AI_SERVER_PORT || 'not set';
 
 // Middleware
 app.use(cors());
@@ -68,7 +66,7 @@ app.use((req, res) => {
 // Start
 app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`\n🚀 Server running on port ${PORT}`);
-    console.log(`   AI Server:     http://${AI_HOST}:${AI_PORT}`);
+    console.log(`   Timetable AI:  Gemini`);
     console.log(`   Auth:          http://localhost:${PORT}/api/auth`);
     console.log(`   Onboarding:    http://localhost:${PORT}/api/onboarding`);
     console.log(`   Timetable:     http://localhost:${PORT}/api/timetable`);

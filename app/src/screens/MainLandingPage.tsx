@@ -5,7 +5,7 @@ import {
     TextInput, Image, FlatList, NativeModules
 } from 'react-native';
 import { useOnboardingStore } from '../store/useOnboardingStore';
-import { API_CONFIG } from '../config/apiConfig';
+import { API_CONFIG, getApiBaseCandidates } from '../config/apiConfig';
 
 // Safe wrapper: check if the NATIVE module exists before using the JS wrapper
 const _imagePickerAvailable = !!NativeModules.ImagePicker;
@@ -21,7 +21,12 @@ if (_imagePickerAvailable) {
 import FocusModeScreen from './FocusModeScreen';
 import GroupDashboardScreen from './GroupDashboardScreen';
 import DigitalGovernanceScreen from './DigitalGovernanceScreen';
+import FinalJsonPreviewScreen from './FinalJsonPreviewScreen.tsx';
 import { triggerHaptic } from '../utils/haptics';
+
+const FONT_FAMILY_REGULAR = Platform.select({ ios: 'System', android: 'sans-serif', default: 'System' });
+const FONT_FAMILY_MEDIUM = Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'System' });
+const FONT_FAMILY_BOLD = Platform.select({ ios: 'System', android: 'sans-serif-bold', default: 'System' });
 
 export default function MainLandingPage() {
     const [showSettings, setShowSettings] = useState(false);
@@ -40,8 +45,26 @@ export default function MainLandingPage() {
     const [groupCodeInput, setGroupCodeInput] = useState('');
     const [isGroupLoading, setIsGroupLoading] = useState(false);
     const [showGovernance, setShowGovernance] = useState(false);
+    const [showFinalJson, setShowFinalJson] = useState(false);
+    const [configuredApps, setConfiguredApps] = useState<Array<{ id: string; name: string }>>([]);
 
-    const { clearState, userEmail } = useOnboardingStore();
+    // Misc commitments
+    const [showAddTimetableItem, setShowAddTimetableItem] = useState(false);
+    const [miscCommitments, setMiscCommitments] = useState<Array<{ time: string; description: string; duration_min: number }>>([]);
+    const [manualCommitment, setManualCommitment] = useState({
+        time: '', description: '', duration_min: ''
+    });
+
+    const {
+        clearState,
+        userEmail,
+        answers,
+        longTermGoals,
+        shortTermGoals,
+        onboardingArchetype,
+        showOnboardingSuccessToast,
+        clearOnboardingToast,
+    } = useOnboardingStore();
     const activeUserName = userEmail ? userEmail.split('@')[0] : 'NEURAL_UNIT';
 
     // Animations
@@ -51,6 +74,9 @@ export default function MainLandingPage() {
     const focusBtnScale = useRef(new Animated.Value(1)).current;
     const ocrFadeAnim = useRef(new Animated.Value(0)).current;
     const luminousToggleAnim = useRef(new Animated.Value(1)).current;
+    const successToastAnim = useRef(new Animated.Value(-120)).current;
+    const successToastFade = useRef(new Animated.Value(0)).current;
+    const [showLandingSuccessToast, setShowLandingSuccessToast] = useState(false);
 
     useEffect(() => {
         Animated.timing(entranceAnim, {
@@ -68,6 +94,46 @@ export default function MainLandingPage() {
             ])
         ).start();
     }, []);
+
+    useEffect(() => {
+        if (!showOnboardingSuccessToast) {
+            return;
+        }
+
+        setShowLandingSuccessToast(true);
+        Animated.parallel([
+            Animated.spring(successToastAnim, {
+                toValue: 0,
+                bounciness: 10,
+                useNativeDriver: true,
+            }),
+            Animated.timing(successToastFade, {
+                toValue: 1,
+                duration: 280,
+                useNativeDriver: true,
+            }),
+        ]).start();
+
+        const timeout = setTimeout(() => {
+            Animated.parallel([
+                Animated.timing(successToastAnim, {
+                    toValue: -120,
+                    duration: 280,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(successToastFade, {
+                    toValue: 0,
+                    duration: 260,
+                    useNativeDriver: true,
+                }),
+            ]).start(() => {
+                setShowLandingSuccessToast(false);
+                clearOnboardingToast();
+            });
+        }, 2300);
+
+        return () => clearTimeout(timeout);
+    }, [showOnboardingSuccessToast, successToastAnim, successToastFade, clearOnboardingToast]);
 
     const handleCreateGroup = async () => {
         if (!groupNameInput.trim()) return;
@@ -171,20 +237,47 @@ export default function MainLandingPage() {
                 name: asset.fileName || 'timetable.jpg',
             } as any);
 
-            const baseUrl = API_CONFIG.BASE_URL;
-            const response = await fetch(`${baseUrl}/api/timetable/upload`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'multipart/form-data' },
-                body: formData,
-            });
+            const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs = 25000) => {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                try {
+                    return await fetch(url, { ...options, signal: controller.signal });
+                } finally {
+                    clearTimeout(timeoutId);
+                }
+            };
 
-            const json = await response.json();
-            if (response.ok) {
-                setOcrData(json.data);
-                triggerHaptic('medium');
-                setShowOcrResult(true);
-            } else {
-                Alert.alert('Upload Failed', json.message || 'Error parsing timetable.');
+            const baseCandidates = [API_CONFIG.BASE_URL, ...getApiBaseCandidates()]
+                .filter((url, index, arr) => arr.indexOf(url) === index);
+
+            let lastNetworkError: unknown = null;
+            let handled = false;
+
+            for (const baseUrl of baseCandidates) {
+                try {
+                    const response = await fetchWithTimeout(`${baseUrl}/api/timetable/upload`, {
+                        method: 'POST',
+                        body: formData,
+                    }, 25000);
+
+                    const json = await response.json();
+                    if (response.ok) {
+                        setOcrData(json.data);
+                        triggerHaptic('medium');
+                        setShowOcrResult(true);
+                    } else {
+                        Alert.alert('Upload Failed', json.message || 'Error parsing timetable.');
+                    }
+                    handled = true;
+                    break;
+                } catch (error) {
+                    lastNetworkError = error;
+                }
+            }
+
+            if (!handled) {
+                console.error('Timetable upload failed on all API base candidates:', lastNetworkError);
+                Alert.alert('Network Error', 'OCR request timed out or backend is unreachable. Please try again.');
             }
         } catch (error) {
             console.error(error);
@@ -216,8 +309,57 @@ export default function MainLandingPage() {
     const translateY = entranceAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] });
     const opacity = entranceAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
 
+    const buildPersonality = () => ({
+        chronotype: (answers.q1_attention ?? 0) === 1 ? 'early_bird' : 'night_owl',
+        energy_peaks: (answers.q1_attention ?? 0) === 1
+            ? ['06:00-11:00', '16:00-20:00']
+            : ['14:00-18:00', '22:00-02:00'],
+        distraction_triggers: configuredApps.length > 0
+            ? configuredApps.map(app => app.name)
+            : (answers.q4_social ?? 0) === 0
+                ? ['instagram', 'whatsapp', 'youtube']
+                : ['whatsapp', 'youtube'],
+        focus_style: (answers.q2_decision ?? 0) === 1 ? 'deep_work_mornings' : 'flexible_execution',
+    });
+
+    const timetable = Array.isArray(ocrData?.timetable)
+        ? ocrData.timetable
+        : Array.isArray(ocrData?.items)
+            ? ocrData.items
+            : [];
+
+    const finalJson = {
+        user_id: activeUserName,
+        current_date: new Date().toISOString().split('T')[0],
+        current_day: new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date()),
+        personality: buildPersonality(),
+        timetable,
+        long_term_goals: longTermGoals,
+        short_term_goals: shortTermGoals,
+        misc_commitments: miscCommitments,
+        apps_to_align_with_focus_timer: configuredApps,
+        today_deadlines: [] as Array<{ title: string; due: string }>,
+        archetype: onboardingArchetype,
+    };
+
     return (
         <View style={styles.masterContainer}>
+            {showLandingSuccessToast && (
+                <Animated.View
+                    pointerEvents="none"
+                    style={[
+                        styles.successToast,
+                        {
+                            opacity: successToastFade,
+                            transform: [{ translateY: successToastAnim }],
+                        },
+                    ]}
+                >
+                    <Text style={styles.successToastTitle}>Successfully onboarded</Text>
+                    <Text style={styles.successToastSubtitle}>{onboardingArchetype || 'CYBER UNIT'}</Text>
+                </Animated.View>
+            )}
+
             <View style={[styles.bgLayer, { backgroundColor: '#0F1115' }]} />
             <View style={[styles.bgLayer, { backgroundColor: '#141821', opacity: 0.7, top: '30%', bottom: '30%' }]} />
             <View style={[styles.bgLayer, { backgroundColor: '#0B0E13', opacity: 0.9, top: '60%' }]} />
@@ -262,6 +404,13 @@ export default function MainLandingPage() {
                                     )}
                                     {isLuminous && <View style={styles.buttonNeonEdge} />}
                                 </Animated.View>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.uploadButton, { marginTop: 12, borderStyle: 'dashed' }]}
+                                onPress={() => setShowAddTimetableItem(true)}
+                            >
+                                <Text style={[styles.uploadButtonText, { color: '#94A3B8' }]}>+ ADD MISC COMMITMENT</Text>
                             </TouchableOpacity>
                             {showOcrResult && (
                                 <Animated.View style={[styles.cyberTerminal, { opacity: ocrFadeAnim }]}>
@@ -340,6 +489,20 @@ export default function MainLandingPage() {
                                 </TouchableOpacity>
                             </View>
                         </View>
+
+                        <View style={[styles.glassCard, styles.lastCard]}>
+                            <View style={styles.cardHighlight} />
+                            <Text style={styles.sectionTitle}>Final Payload JSON</Text>
+                            <Text style={styles.sectionSubtitle}>Temporary preview screen for the end payload (dynamic values).</Text>
+                            <TouchableOpacity activeOpacity={0.85} onPress={() => setShowFinalJson(true)}>
+                                <View style={styles.governanceEntryCard}>
+                                    <View style={styles.entryGlow} />
+                                    <Text style={styles.entryTitle}>VIEW FINAL JSON</Text>
+                                    <Text style={styles.entryDesc}>Includes personality, timetable, goals, misc_commitments and day/date.</Text>
+                                    <Text style={styles.entryArrow}>OPEN →</Text>
+                                </View>
+                            </TouchableOpacity>
+                        </View>
                     </Animated.View>
                 </ScrollView>
             </SafeAreaView>
@@ -405,7 +568,62 @@ export default function MainLandingPage() {
             </Modal>
 
             <Modal visible={showGovernance} animationType="slide" presentationStyle="fullScreen">
-                <DigitalGovernanceScreen onBack={() => setShowGovernance(false)} />
+                <DigitalGovernanceScreen
+                    onBack={() => setShowGovernance(false)}
+                    onConfirmSelection={(apps) => {
+                        setConfiguredApps(apps);
+                        triggerHaptic('medium');
+                        setShowGovernance(false);
+                    }}
+                />
+            </Modal>
+
+            <Modal visible={showAddTimetableItem} animationType="fade" transparent={true}>
+                <View style={[styles.modalOverlay, { justifyContent: 'center' }]}>
+                    <View style={[styles.pickerPanel, { marginTop: 0, borderRadius: 32 }]}>
+                        <View style={styles.pickerHeader}>
+                            <Text style={styles.pickerTitle}>ADD MISC COMMITMENT</Text>
+                            <TouchableOpacity onPress={() => setShowAddTimetableItem(false)}><Text style={styles.closeText}>CANCEL</Text></TouchableOpacity>
+                        </View>
+                        <TextInput style={styles.premiumInput} placeholder="Description (e.g. GDSC weekly meet)" placeholderTextColor="#475569" value={manualCommitment.description} onChangeText={t => setManualCommitment({ ...manualCommitment, description: t })} />
+                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                            <TextInput style={[styles.premiumInput, { flex: 1 }]} placeholder="Time (17:00)" placeholderTextColor="#475569" value={manualCommitment.time} onChangeText={t => setManualCommitment({ ...manualCommitment, time: t })} />
+                            <TextInput style={[styles.premiumInput, { flex: 1 }]} placeholder="Duration (min)" placeholderTextColor="#475569" keyboardType="numeric" value={manualCommitment.duration_min} onChangeText={t => setManualCommitment({ ...manualCommitment, duration_min: t })} />
+                        </View>
+
+                        <TouchableOpacity
+                            style={styles.confirmButton}
+                            onPress={() => {
+                                if (!manualCommitment.description.trim() || !manualCommitment.time.trim()) {
+                                    Alert.alert('Missing fields', 'Please add time and description.');
+                                    return;
+                                }
+
+                                triggerHaptic('medium');
+                                const payload = {
+                                    time: manualCommitment.time.trim(),
+                                    description: manualCommitment.description.trim(),
+                                    duration_min: Number(manualCommitment.duration_min) || 60,
+                                };
+
+                                setMiscCommitments(prev => [...prev, payload]);
+                                setOcrData((prev: any) => ({
+                                    ...prev,
+                                    misc_commitments: [...(prev?.misc_commitments || []), payload]
+                                }));
+                                setShowAddTimetableItem(false);
+                                setManualCommitment({ time: '', description: '', duration_min: '' });
+                                setShowOcrResult(true);
+                            }}
+                        >
+                            <Text style={styles.confirmButtonText}>ADD TO SCHEDULE</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            <Modal visible={showFinalJson} animationType="slide" presentationStyle="fullScreen">
+                <FinalJsonPreviewScreen finalJson={finalJson} onBack={() => setShowFinalJson(false)} />
             </Modal>
         </View>
     );
@@ -413,6 +631,40 @@ export default function MainLandingPage() {
 
 const styles = StyleSheet.create({
     masterContainer: { flex: 1, backgroundColor: '#0F1115' },
+    successToast: {
+        position: 'absolute',
+        top: 18,
+        left: 20,
+        right: 20,
+        zIndex: 999,
+        borderRadius: 16,
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        backgroundColor: '#111827',
+        borderWidth: 1,
+        borderColor: '#22D3EE',
+        shadowColor: '#22D3EE',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.35,
+        shadowRadius: 10,
+        elevation: 8,
+    },
+    successToastTitle: {
+        color: '#E2E8F0',
+        fontSize: 14,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        fontFamily: FONT_FAMILY_BOLD,
+    },
+    successToastSubtitle: {
+        color: '#22D3EE',
+        fontSize: 12,
+        fontWeight: '700',
+        marginTop: 4,
+        letterSpacing: 0.6,
+        fontFamily: FONT_FAMILY_MEDIUM,
+    },
     bgLayer: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
     ambientGlow: { position: 'absolute', top: '10%', left: '20%', right: '20%', height: '30%', backgroundColor: 'rgba(34, 211, 238, 0.05)', borderRadius: 200, transform: [{ scaleY: 1.5 }] },
     safeArea: { flex: 1 },
@@ -420,65 +672,65 @@ const styles = StyleSheet.create({
     iconButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'flex-start' },
     hamburgerLine: { width: 22, height: 2, backgroundColor: '#94A3B8', marginVertical: 3, borderRadius: 1 },
     titleContainer: { justifyContent: 'center', alignItems: 'center' },
-    headerTitle: { fontSize: 18, fontWeight: '700', color: '#F8FAFC', letterSpacing: 1 },
-    headerTitleGlow: { position: 'absolute', fontSize: 18, fontWeight: '700', color: '#22D3EE', letterSpacing: 1, textShadowColor: 'rgba(34, 211, 238, 0.8)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 10 },
+    headerTitle: { fontSize: 18, fontWeight: '700', fontFamily: FONT_FAMILY_BOLD, color: '#F8FAFC', letterSpacing: 1 },
+    headerTitleGlow: { position: 'absolute', fontSize: 18, fontWeight: '700', fontFamily: FONT_FAMILY_BOLD, color: '#22D3EE', letterSpacing: 1, textShadowColor: 'rgba(34, 211, 238, 0.8)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 10 },
     scrollContent: { padding: 20 },
     glassCard: { backgroundColor: '#161B22', borderRadius: 24, padding: 24, marginBottom: 20, borderWidth: 1, borderColor: 'rgba(34, 211, 238, 0.1)', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 10, overflow: 'hidden' },
     cardHighlight: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(255, 255, 255, 0.05)' },
     lastCard: { marginBottom: 40 },
     cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-    sectionTitle: { fontSize: 18, fontWeight: '700', color: '#F1F5F9', letterSpacing: 0.5 },
+    sectionTitle: { fontSize: 18, fontWeight: '700', fontFamily: FONT_FAMILY_BOLD, color: '#F1F5F9', letterSpacing: 0.5 },
     aiBadge: { backgroundColor: 'rgba(34, 211, 238, 0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(34, 211, 238, 0.3)' },
-    aiBadgeText: { color: '#22D3EE', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-    sectionSubtitle: { fontSize: 13, color: '#94A3B8', lineHeight: 20, marginBottom: 24 },
+    aiBadgeText: { color: '#22D3EE', fontSize: 10, fontWeight: '800', fontFamily: FONT_FAMILY_BOLD, letterSpacing: 1 },
+    sectionSubtitle: { fontSize: 13, fontFamily: FONT_FAMILY_REGULAR, color: '#94A3B8', lineHeight: 20, marginBottom: 24 },
     uploadButton: { backgroundColor: '#1E293B', paddingVertical: 16, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: '#334155', overflow: 'hidden' },
     buttonNeonEdge: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(37, 99, 235, 0.5)' },
-    uploadButtonText: { color: '#E2E8F0', fontSize: 15, fontWeight: '600', letterSpacing: 0.5 },
-    uploadButtonTextActive: { color: '#22D3EE', fontSize: 15, fontWeight: '600', letterSpacing: 0.5 },
+    uploadButtonText: { color: '#E2E8F0', fontSize: 15, fontWeight: '600', fontFamily: FONT_FAMILY_MEDIUM, letterSpacing: 0.5 },
+    uploadButtonTextActive: { color: '#22D3EE', fontSize: 15, fontWeight: '600', fontFamily: FONT_FAMILY_MEDIUM, letterSpacing: 0.5 },
     cyberTerminal: { marginTop: 20, backgroundColor: '#0F172A', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(34, 211, 238, 0.2)', overflow: 'hidden' },
     terminalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1E293B', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#334155' },
-    terminalTitle: { color: '#10B981', fontSize: 11, fontWeight: '700', letterSpacing: 1, textShadowColor: 'rgba(16, 185, 129, 0.4)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8 },
+    terminalTitle: { color: '#10B981', fontSize: 11, fontWeight: '700', fontFamily: FONT_FAMILY_BOLD, letterSpacing: 1, textShadowColor: 'rgba(16, 185, 129, 0.4)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8 },
     closeCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(255, 255, 255, 0.05)', justifyContent: 'center', alignItems: 'center' },
     closeCircleText: { color: '#94A3B8', fontSize: 12, fontWeight: '700' },
     terminalScroll: { maxHeight: 200, padding: 16 },
     terminalText: { color: '#38BDF8', fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', lineHeight: 18 },
-    timeSettingsScroll: { paddingVertical: 10, gap: 12 },
-    timeChip: { width: 100, backgroundColor: 'rgba(15, 23, 42, 0.6)', borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#334155', marginRight: 12 },
+    timeSettingsScroll: { paddingVertical: 6, gap: 8 },
+    timeChip: { width: 82, height: 66, backgroundColor: 'rgba(15, 23, 42, 0.6)', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#334155', marginRight: 8 },
     timeChipActive: { backgroundColor: 'rgba(37, 99, 235, 0.15)', borderColor: '#2563EB' },
-    chipGlow: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, borderRadius: 16, borderWidth: 1, borderColor: '#38BDF8', opacity: 0.4 },
-    timeLabel: { fontSize: 24, fontWeight: '800', color: '#64748B', marginBottom: 2 },
+    chipGlow: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, borderRadius: 12, borderWidth: 1, borderColor: '#38BDF8', opacity: 0.4 },
+    timeLabel: { fontSize: 18, fontWeight: '800', fontFamily: FONT_FAMILY_BOLD, color: '#64748B', marginBottom: 1 },
     timeLabelActive: { color: '#F8FAFC', textShadowColor: '#38BDF8', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 10 },
-    timeValue: { fontSize: 11, fontWeight: '700', color: '#475569', letterSpacing: 1 },
+    timeValue: { fontSize: 10, fontWeight: '700', fontFamily: FONT_FAMILY_MEDIUM, color: '#475569', letterSpacing: 0.8 },
     timeValueActive: { color: '#38BDF8' },
-    heroButton: { height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', backgroundColor: '#2563EB', overflow: 'hidden' },
+    heroButton: { height: 56, marginTop: 10, borderRadius: 16, justifyContent: 'center', alignItems: 'center', backgroundColor: '#2563EB', overflow: 'hidden' },
     heroButtonBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255, 255, 255, 0.1)' },
     heroGlow: { position: 'absolute', top: -10, left: '20%', right: '20%', height: 20, backgroundColor: '#60A5FA', opacity: 0.8, borderRadius: 20, shadowColor: '#60A5FA', shadowOffset: { width: 0, height: 0 }, shadowRadius: 10, shadowOpacity: 1 },
-    heroButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', letterSpacing: 1.5 },
+    heroButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', fontFamily: FONT_FAMILY_BOLD, letterSpacing: 1.5 },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.6)', justifyContent: 'flex-start' },
     settingsPanel: { backgroundColor: '#1E293B', marginTop: Platform.OS === 'ios' ? 60 : 40, marginHorizontal: 16, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#334155', shadowColor: '#000', shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.5, shadowRadius: 30, elevation: 15 },
     settingsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    settingsTitle: { fontSize: 14, fontWeight: '800', color: '#F1F5F9', letterSpacing: 2 },
-    closeText: { fontSize: 12, color: '#94A3B8', fontWeight: '700', letterSpacing: 1 },
+    settingsTitle: { fontSize: 14, fontWeight: '800', fontFamily: FONT_FAMILY_BOLD, color: '#F1F5F9', letterSpacing: 2 },
+    closeText: { fontSize: 12, color: '#94A3B8', fontWeight: '700', fontFamily: FONT_FAMILY_MEDIUM, letterSpacing: 1 },
     settingsItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
-    settingsItemText: { fontSize: 15, color: '#CBD5E1', fontWeight: '500' },
+    settingsItemText: { fontSize: 15, color: '#CBD5E1', fontWeight: '500', fontFamily: FONT_FAMILY_REGULAR },
     switchTrack: { width: 44, height: 24, borderRadius: 12, backgroundColor: '#334155', padding: 2, justifyContent: 'center' },
     switchTrackActive: { backgroundColor: '#2563EB' },
     switchKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#F8FAFC' },
     settingsDivider: { height: 1, backgroundColor: '#334155', marginVertical: 16 },
     logoutButton: { backgroundColor: 'rgba(153, 27, 27, 0.2)', paddingVertical: 14, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: '#991B1B' },
-    logoutText: { color: '#F87171', fontSize: 14, fontWeight: '700', letterSpacing: 1 },
+    logoutText: { color: '#F87171', fontSize: 14, fontWeight: '700', fontFamily: FONT_FAMILY_MEDIUM, letterSpacing: 1 },
     pickerPanel: { backgroundColor: '#0F172A', marginTop: 'auto', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24, borderWidth: 1, borderColor: '#1E293B' },
     pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
-    pickerTitle: { fontSize: 12, fontWeight: '800', color: '#F1F5F9', letterSpacing: 1.5 },
+    pickerTitle: { fontSize: 12, fontWeight: '800', fontFamily: FONT_FAMILY_BOLD, color: '#F1F5F9', letterSpacing: 1.5 },
     confirmButton: { backgroundColor: '#2563EB', borderRadius: 16, paddingVertical: 18, alignItems: 'center' },
-    confirmButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', letterSpacing: 2 },
-    premiumInput: { backgroundColor: '#161B22', borderWidth: 1, borderColor: '#30363D', borderRadius: 16, padding: 18, color: '#F0F6FC', fontSize: 14, fontWeight: '600', marginBottom: 20 },
+    confirmButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', fontFamily: FONT_FAMILY_BOLD, letterSpacing: 2 },
+    premiumInput: { backgroundColor: '#161B22', borderWidth: 1, borderColor: '#30363D', borderRadius: 16, padding: 18, color: '#F0F6FC', fontSize: 14, fontWeight: '600', fontFamily: FONT_FAMILY_REGULAR, marginBottom: 20 },
     groupActionsRow: { flexDirection: 'row', gap: 12, marginTop: 16 },
     groupBtn: { flex: 1, backgroundColor: '#2563EB', paddingVertical: 14, borderRadius: 16, alignItems: 'center', borderWidth: 1, borderColor: '#3B82F6' },
-    groupBtnText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+    groupBtnText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900', fontFamily: FONT_FAMILY_BOLD, letterSpacing: 1 },
     governanceEntryCard: { backgroundColor: '#0F172A', borderRadius: 20, padding: 24, marginTop: 10, borderWidth: 1, borderColor: 'rgba(34, 211, 238, 0.2)', overflow: 'hidden' },
     entryGlow: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: 'rgba(34, 211, 238, 0.4)' },
-    entryTitle: { color: '#F8FAFC', fontSize: 14, fontWeight: '800', letterSpacing: 1, marginBottom: 4 },
-    entryDesc: { color: '#64748B', fontSize: 12, lineHeight: 18 },
-    entryArrow: { color: '#22D3EE', fontSize: 10, fontWeight: '900', marginTop: 16, letterSpacing: 1 },
+    entryTitle: { color: '#F8FAFC', fontSize: 14, fontWeight: '800', fontFamily: FONT_FAMILY_BOLD, letterSpacing: 1, marginBottom: 4 },
+    entryDesc: { color: '#64748B', fontSize: 12, fontFamily: FONT_FAMILY_REGULAR, lineHeight: 18 },
+    entryArrow: { color: '#22D3EE', fontSize: 10, fontWeight: '900', fontFamily: FONT_FAMILY_BOLD, marginTop: 16, letterSpacing: 1 },
 });

@@ -14,20 +14,35 @@ interface OnboardingState {
         q5_discipline: number | null;
     };
 
+    // Step 3: Goals
+    longTermGoals: Array<{ id: string; title: string; priority: number; category: string; deadline: string }>;
+    shortTermGoals: Array<{ id: string; title: string; priority: number; category: string; deadline: string }>;
+
     // Completion state
     isOnboarded: boolean;
+    onboardingArchetype: string | null;
+    showOnboardingSuccessToast: boolean;
 
     // Actions
     setTempAuth: (token: string, email: string) => void;
     setAnswer: (questionKey: keyof OnboardingState['answers'], answerIndex: number) => void;
+    addLongTermGoal: (goal: { title: string; priority: number; category: string; deadline: string }) => void;
+    addShortTermGoal: (goal: { title: string; priority: number; category: string; deadline: string }) => void;
+    removeGoal: (type: 'long' | 'short', id: string) => void;
     setOnboarded: (status: boolean) => void;
+    completeOnboarding: (archetype: string) => void;
+    clearOnboardingToast: () => void;
     clearState: () => void;
 }
 
 export const useOnboardingStore = create<OnboardingState>((set) => ({
     tempJwt: null,
     userEmail: null,
+    longTermGoals: [],
+    shortTermGoals: [],
     isOnboarded: false,
+    onboardingArchetype: null,
+    showOnboardingSuccessToast: false,
     answers: {
         q1_attention: null,
         q2_decision: null,
@@ -47,14 +62,50 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
             },
         })),
 
+    addLongTermGoal: (goal) =>
+        set((state) => ({
+            longTermGoals: [
+                ...state.longTermGoals,
+                { ...goal, id: `lt${state.longTermGoals.length + 1}` },
+            ],
+        })),
+
+    addShortTermGoal: (goal) =>
+        set((state) => ({
+            shortTermGoals: [
+                ...state.shortTermGoals,
+                { ...goal, id: `st${state.shortTermGoals.length + 1}` },
+            ],
+        })),
+
+    removeGoal: (type, id) =>
+        set((state) => ({
+            longTermGoals: type === 'long' ? state.longTermGoals.filter((g) => g.id !== id) : state.longTermGoals,
+            shortTermGoals: type === 'short' ? state.shortTermGoals.filter((g) => g.id !== id) : state.shortTermGoals,
+        })),
+
     setOnboarded: (status: boolean) =>
         set(() => ({ isOnboarded: status })),
+
+    completeOnboarding: (archetype: string) =>
+        set(() => ({
+            isOnboarded: true,
+            onboardingArchetype: archetype,
+            showOnboardingSuccessToast: true,
+        })),
+
+    clearOnboardingToast: () =>
+        set(() => ({ showOnboardingSuccessToast: false })),
 
     clearState: () =>
         set(() => ({
             tempJwt: null,
             userEmail: null,
+            longTermGoals: [],
+            shortTermGoals: [],
             isOnboarded: false,
+            onboardingArchetype: null,
+            showOnboardingSuccessToast: false,
             answers: {
                 q1_attention: null,
                 q2_decision: null,

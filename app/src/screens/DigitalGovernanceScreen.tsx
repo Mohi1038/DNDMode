@@ -1,40 +1,51 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-    View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView,
-    Animated, Modal, Platform, Alert, Easing, Vibration, ActivityIndicator,
+    View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
+    Animated, Modal, Platform, Alert, Easing, ActivityIndicator,
     TextInput, Image, FlatList, NativeModules
 } from 'react-native';
-import { useOnboardingStore } from '../store/useOnboardingStore';
 import { triggerHaptic } from '../utils/haptics';
 
 const { InstalledAppsModule } = NativeModules;
 
-export interface AppSchedule {
+const FONT_FAMILY_REGULAR = Platform.select({ ios: 'System', android: 'sans-serif', default: 'System' });
+const FONT_FAMILY_MEDIUM = Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'System' });
+const FONT_FAMILY_BOLD = Platform.select({ ios: 'System', android: 'sans-serif-bold', default: 'System' });
+
+export interface AppSelection {
     id: string;
     name: string;
     icon: string;
-    start: string;
-    end: string;
-    duration: number;
     color: string;
     isNative: boolean;
+    selected: boolean;
+    durationMins?: number;
 }
 
-export default function DigitalGovernanceScreen({ onBack, onPropose, isSyncing }: { onBack: () => void, onPropose?: (apps: any[]) => void, isSyncing?: boolean }) {
-    const [appSchedules, setAppSchedules] = useState<AppSchedule[]>([]);
-    const [filteredApps, setFilteredApps] = useState<AppSchedule[]>([]);
-    const [allDeviceApps, setAllDeviceApps] = useState<AppSchedule[]>([]);
+export interface AppSchedule {
+    id: string;
+    name: string;
+    durationMins: number;
+}
+
+export default function DigitalGovernanceScreen({
+    onBack,
+    onConfirmSelection,
+    onPropose,
+    isSyncing = false,
+}: {
+    onBack: () => void;
+    onConfirmSelection?: (apps: AppSchedule[]) => void;
+    onPropose?: (apps: AppSchedule[]) => void;
+    isSyncing?: boolean;
+}) {
+    const [appCatalog, setAppCatalog] = useState<AppSelection[]>([]);
+    const [filteredApps, setFilteredApps] = useState<AppSelection[]>([]);
+    const [allDeviceApps, setAllDeviceApps] = useState<AppSelection[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoadingApps, setIsLoadingApps] = useState(true);
     const [showExpansionModal, setShowExpansionModal] = useState(false);
     const [expansionSearch, setExpansionSearch] = useState('');
-
-    // Time Picker UI State
-    const [isTimePickerVisible, setIsTimePickerVisible] = useState(false);
-    const [activeAppId, setActiveAppId] = useState<string | null>(null);
-    const [activeTimeType, setActiveTimeType] = useState<'start' | 'end' | null>(null);
-    const [selectedHH, setSelectedHH] = useState('12');
-    const [selectedMM, setSelectedMM] = useState('00');
 
     // Animations
     const entranceAnim = useRef(new Animated.Value(0)).current;
@@ -53,26 +64,36 @@ export default function DigitalGovernanceScreen({ onBack, onPropose, isSyncing }
     const fetchAppProtocols = async () => {
         setIsLoadingApps(true);
         try {
-            if (!InstalledAppsModule) {
+            if (!InstalledAppsModule?.getSortedApps) {
                 console.warn('InstalledAppsModule native module not available');
                 setAllDeviceApps([]);
-                setAppSchedules([]);
+                setAppCatalog([]);
                 setFilteredApps([]);
-                setIsLoadingApps(false);
                 return;
             }
+
             const apps = await InstalledAppsModule.getSortedApps();
 
-            const formattedApps: AppSchedule[] = apps.map((app: any) => {
+            const formattedApps: AppSelection[] = apps.map((app: any) => {
+                let cleanIcon = app.icon;
+                if (cleanIcon && cleanIcon.startsWith('file://')) {
+                    // OK
+                } else if (cleanIcon && cleanIcon.length > 50) {
+                    const sanitized = cleanIcon.replace(/\s/g, '');
+                    const base64 = sanitized.includes('base64,') ? sanitized.split('base64,')[1] : sanitized;
+                    cleanIcon = `data:image/png;base64,${base64}`;
+                } else {
+                    cleanIcon = '';
+                }
+
                 return {
                     id: app.packageName,
                     name: app.label || 'Unknown Interface',
-                    icon: app.icon || '',
-                    start: '09:00',
-                    end: '17:00',
-                    duration: 8,
-                    color: '#38BDF8',
-                    isNative: true
+                    icon: cleanIcon,
+                    color: app.accentColor || '#38BDF8',
+                    isNative: true,
+                    selected: false,
+                    durationMins: 15,
                 };
             });
 
@@ -81,16 +102,18 @@ export default function DigitalGovernanceScreen({ onBack, onPropose, isSyncing }
             const socialKeywords = ['facebook', 'instagram', 'whatsapp', 'twitter', 'x.com', 'discord', 'telegram', 'snapchat', 'tiktok', 'reddit'];
             const gameKeywords = ['game', 'atari', 'unity', 'unreal', 'mojang', 'roblox', 'tencent', 'pubg', 'chess'];
 
-            const initialSchedules = formattedApps.filter(app => {
+            const initialSelection = formattedApps
+                .filter(app => {
                 const pkg = app.id.toLowerCase();
                 const name = app.name.toLowerCase();
                 const isSocial = socialKeywords.some(kw => pkg.includes(kw) || name.includes(kw));
                 const isGame = gameKeywords.some(kw => pkg.includes(kw) || name.includes(kw));
                 return isSocial || isGame;
-            });
+                })
+                .map(app => ({ ...app, selected: true }));
 
-            setAppSchedules(initialSchedules);
-            setFilteredApps(initialSchedules);
+            setAppCatalog(initialSelection);
+            setFilteredApps(initialSelection);
         } catch (error) {
             console.error('Failed to fetch native apps:', error);
         } finally {
@@ -98,36 +121,47 @@ export default function DigitalGovernanceScreen({ onBack, onPropose, isSyncing }
         }
     };
 
-    const addAppToGovernance = (app: AppSchedule) => {
-        if (appSchedules.some(a => a.id === app.id)) {
-            Alert.alert('System Alert', 'This interface is already under governance.');
+    const addAppToGovernance = (app: AppSelection) => {
+        if (appCatalog.some(a => a.id === app.id)) {
+            Alert.alert('System Alert', 'This interface is already listed.');
             return;
         }
-        const updated = [...appSchedules, app];
-        setAppSchedules(updated);
+        const updated = [...appCatalog, { ...app, selected: true }];
+        setAppCatalog(updated);
         setFilteredApps(updated);
         setShowExpansionModal(false);
         triggerHaptic('medium');
     };
 
-    const updateAppDuration = (id: string, hours: number) => {
-        setAppSchedules(prev => prev.map(app => {
-            if (app.id === id) {
-                const [h, m] = app.start.split(':').map(Number);
-                const endH = (h + hours) % 24;
-                const endStr = `${endH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-                return { ...app, duration: hours, end: endStr };
+    const toggleAppSelection = (id: string) => {
+        triggerHaptic('light');
+        setAppCatalog(prev => prev.map(app => {
+            if (app.id !== id) {
+                return app;
             }
-            return app;
+
+            const willSelect = !app.selected;
+            return {
+                ...app,
+                selected: willSelect,
+                durationMins: willSelect ? (app.durationMins || 15) : undefined,
+            };
         }));
     };
 
+    const setAppDuration = (id: string, durationMins: number) => {
+        triggerHaptic('light');
+        setAppCatalog(prev => prev.map(app => (
+            app.id === id ? { ...app, durationMins } : app
+        )));
+    };
+
     useEffect(() => {
-        const filtered = appSchedules.filter(app =>
+        const filtered = appCatalog.filter(app =>
             app.name.toLowerCase().includes(searchQuery.toLowerCase())
         );
         setFilteredApps(filtered);
-    }, [searchQuery, appSchedules]);
+    }, [searchQuery, appCatalog]);
 
     const getCategorizedData = () => {
         const socialApps = filteredApps.filter(app => {
@@ -162,33 +196,23 @@ export default function DigitalGovernanceScreen({ onBack, onPropose, isSyncing }
         return data;
     };
 
-    const openTimePicker = (appId: string, type: 'start' | 'end', currentVal: string) => {
-        const [hh, mm] = currentVal.split(':');
-        setActiveAppId(appId);
-        setActiveTimeType(type);
-        setSelectedHH(hh);
-        setSelectedMM(mm);
-        setIsTimePickerVisible(true);
-        triggerHaptic('light');
-    };
+    const handleConfirmConfiguration = () => {
+        const selected: AppSchedule[] = appCatalog
+            .filter(app => app.selected)
+            .map(app => ({
+                id: app.id,
+                name: app.name,
+                durationMins: app.durationMins || 15,
+            }));
 
-    const confirmTime = () => {
-        if (!activeAppId || !activeTimeType) return;
-        const newTime = `${selectedHH}:${selectedMM}`;
-        setAppSchedules(prev => prev.map(app => {
-            if (app.id === activeAppId) {
-                return { ...app, [activeTimeType]: newTime };
-            }
-            return app;
-        }));
-        setFilteredApps(prev => prev.map(app => {
-            if (app.id === activeAppId) {
-                return { ...app, [activeTimeType]: newTime };
-            }
-            return app;
-        }));
-        setIsTimePickerVisible(false);
-        triggerHaptic('medium');
+        if (selected.length === 0) {
+            Alert.alert('No apps selected', 'Select at least one app to align with focus timer.');
+            return;
+        }
+        triggerHaptic('heavy');
+        onConfirmSelection?.(selected);
+        onPropose?.(selected);
+        onBack();
     };
 
     const translateY = entranceAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] });
@@ -213,7 +237,7 @@ export default function DigitalGovernanceScreen({ onBack, onPropose, isSyncing }
                         </View>
                         <TextInput
                             style={styles.searchInput}
-                            placeholder="SEARCH NEURAL SIGNATURES"
+                            placeholder="SEARCH APPS"
                             placeholderTextColor="#475569"
                             value={searchQuery}
                             onChangeText={setSearchQuery}
@@ -242,7 +266,11 @@ export default function DigitalGovernanceScreen({ onBack, onPropose, isSyncing }
                                 }
                                 const app = item;
                                 return (
-                                    <View style={styles.appRow}>
+                                    <TouchableOpacity
+                                        activeOpacity={0.85}
+                                        style={[styles.appRow, app.selected && styles.appRowSelected]}
+                                        onPress={() => toggleAppSelection(app.id)}
+                                    >
                                         <View style={styles.rowTop}>
                                             <View style={styles.appInfo}>
                                                 <View style={[styles.appIconContainer, { borderColor: app.color }]}>
@@ -257,114 +285,61 @@ export default function DigitalGovernanceScreen({ onBack, onPropose, isSyncing }
                                                     <Text style={styles.appStatus} numberOfLines={1}>{app.id}</Text>
                                                 </View>
                                             </View>
-                                            <View style={styles.timePickerContainer}>
-                                                <View style={styles.timePickerCol}>
-                                                    <Text style={styles.timeSmallLabel}>START</Text>
-                                                    <TouchableOpacity style={styles.timeValueBox} onPress={() => openTimePicker(app.id, 'start', app.start)}>
-                                                        <Text style={styles.timeValueText}>{app.start}</Text>
-                                                    </TouchableOpacity>
-                                                </View>
-                                                <Text style={styles.timeSeparator}>→</Text>
-                                                <View style={styles.timePickerCol}>
-                                                    <Text style={styles.timeSmallLabel}>END</Text>
-                                                    <TouchableOpacity style={styles.timeValueBox} onPress={() => openTimePicker(app.id, 'end', app.end)}>
-                                                        <Text style={styles.timeValueText}>{app.end}</Text>
-                                                    </TouchableOpacity>
-                                                </View>
+                                            <View style={[styles.tickBox, app.selected && styles.tickBoxActive]}>
+                                                {app.selected && <Text style={styles.tickMark}>✓</Text>}
                                             </View>
                                         </View>
+                                        <Text style={styles.selectionHint}>Tap card to {app.selected ? 'remove' : 'select'} for focus alignment</Text>
 
-                                        <View style={styles.durationContainer}>
-                                            <Text style={styles.durationLabel}>DAILY CAPACITY: {app.duration || 0}H</Text>
-                                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.durationScroll}>
-                                                {[1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 24].map(hours => (
-                                                    <TouchableOpacity
-                                                        key={hours}
-                                                        onPress={() => { triggerHaptic('light'); updateAppDuration(app.id, hours); }}
-                                                        style={[
-                                                            styles.durationStep,
-                                                            app.duration === hours && { backgroundColor: app.color + '22', borderColor: app.color, borderWidth: 1.5 }
-                                                        ]}
-                                                    >
-                                                        <Text style={[styles.durationStepText, app.duration === hours && { color: app.color, fontWeight: '800' }]}>{hours}h</Text>
-                                                    </TouchableOpacity>
-                                                ))}
-                                            </ScrollView>
-                                        </View>
-                                    </View>
+                                        {app.selected && (
+                                            <View style={styles.timerContainer}>
+                                                <Text style={styles.timerLabel}>Focus timer for this app</Text>
+                                                <View style={styles.timerPillsRow}>
+                                                    {[15, 30, 60, 240].map((mins) => {
+                                                        const active = (app.durationMins || 15) === mins;
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={`${app.id}-${mins}`}
+                                                                activeOpacity={0.85}
+                                                                style={[styles.timerPill, active && styles.timerPillActive]}
+                                                                onPress={() => setAppDuration(app.id, mins)}
+                                                            >
+                                                                <Text style={[styles.timerPillText, active && styles.timerPillTextActive]}>
+                                                                    {mins >= 60 ? `${mins / 60}H` : `${mins}M`}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </View>
+                                            </View>
+                                        )}
+                                    </TouchableOpacity>
                                 );
                             }}
                         />
                     )}
                 </Animated.View>
 
-                {/* Floating Action Button for Expansion */}
+                {/* Bottom Controls */}
                 {!isLoadingApps && (
-                    <View style={styles.fabContainer}>
-                        {onPropose && (
-                            <TouchableOpacity
-                                style={[styles.fab, { backgroundColor: '#10B981', marginRight: 10, flex: 1, position: 'relative', bottom: 0, right: 0 }]}
-                                onPress={() => { triggerHaptic('heavy'); onPropose(appSchedules); }}
-                                disabled={isSyncing}
-                            >
-                                {isSyncing ? (
-                                    <ActivityIndicator color="#FFF" />
-                                ) : (
-                                    <Text style={styles.fabText}>PROPOSE TO GROUP</Text>
-                                )}
-                            </TouchableOpacity>
-                        )}
+                    <>
                         <TouchableOpacity
-                            style={[styles.fab, { flex: 1, position: 'relative', bottom: 0, right: 0 }]}
+                            style={styles.floatingPlus}
                             onPress={() => { triggerHaptic('medium'); setShowExpansionModal(true); }}
                         >
-                            <Text style={styles.fabText}>+ ADD NEW APPS</Text>
+                            <Text style={styles.floatingPlusText}>+</Text>
                         </TouchableOpacity>
-                    </View>
-                )}
-
-                {/* Time Picker Modal */}
-                <Modal visible={isTimePickerVisible} transparent animationType="slide">
-                    <View style={[styles.modalOverlay, { justifyContent: 'flex-end' }]}>
-                        <View style={styles.pickerPanel}>
-                            <View style={styles.pickerHeader}>
-                                <Text style={styles.pickerTitle}>SELECT TEMPORAL MARK</Text>
-                                <TouchableOpacity onPress={() => setIsTimePickerVisible(false)}>
-                                    <Text style={styles.closeText}>CANCEL</Text>
-                                </TouchableOpacity>
-                            </View>
-                            <View style={styles.pickerWheelLayout}>
-                                <ScrollView style={styles.pickerColumn} showsVerticalScrollIndicator={false} pagingEnabled snapToInterval={40}>
-                                    {Array.from({ length: 24 }).map((_, i) => {
-                                        const val = i.toString().padStart(2, '0');
-                                        const isActive = selectedHH === val;
-                                        return (
-                                            <TouchableOpacity key={i} style={styles.pickerItem} onPress={() => { triggerHaptic('light'); setSelectedHH(val); }}>
-                                                <Text style={[styles.pickerItemText, isActive && styles.pickerItemTextActive]}>{val}</Text>
-                                                {isActive && <View style={styles.pickerItemGlow} />}
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                </ScrollView>
-                                <Text style={styles.pickerDivider}>:</Text>
-                                <ScrollView style={styles.pickerColumn} showsVerticalScrollIndicator={false} pagingEnabled snapToInterval={40}>
-                                    {['00', '15', '30', '45'].map(val => {
-                                        const isActive = selectedMM === val;
-                                        return (
-                                            <TouchableOpacity key={val} style={styles.pickerItem} onPress={() => { triggerHaptic('light'); setSelectedMM(val); }}>
-                                                <Text style={[styles.pickerItemText, isActive && styles.pickerItemTextActive]}>{val}</Text>
-                                                {isActive && <View style={styles.pickerItemGlow} />}
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                </ScrollView>
-                            </View>
-                            <TouchableOpacity style={styles.confirmButton} onPress={confirmTime}>
-                                <Text style={styles.confirmButtonText}>CONFIRM PROTOCOL</Text>
+                        <View style={styles.confirmBar}>
+                            <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmConfiguration}>
+                                {isSyncing ? (
+                                    <ActivityIndicator color="#FFFFFF" />
+                                ) : (
+                                    <Text style={styles.confirmButtonText}>CONFIRM CONFIGURATION</Text>
+                                )}
                             </TouchableOpacity>
                         </View>
-                    </View>
-                </Modal>
+                    </>
+                )}
 
                 {/* Neural Expansion Modal */}
                 <Modal visible={showExpansionModal} animationType="slide" transparent>
@@ -379,7 +354,7 @@ export default function DigitalGovernanceScreen({ onBack, onPropose, isSyncing }
                             <View style={styles.searchContainer}>
                                 <TextInput
                                     style={styles.searchInput}
-                                    placeholder="FILTER DEVICE PATHS"
+                                    placeholder="SEARCH APPS"
                                     placeholderTextColor="#475569"
                                     value={expansionSearch}
                                     onChangeText={setExpansionSearch}
@@ -416,65 +391,109 @@ const styles = StyleSheet.create({
     safeArea: { flex: 1 },
     header: {
         flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16,
-        borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.05)', backgroundColor: '#161B22'
+        borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.08)', backgroundColor: '#151A21'
     },
     backButton: { marginRight: 20 },
-    backButtonText: { color: '#94A3B8', fontSize: 13, fontWeight: '800', letterSpacing: 1 },
-    headerTitle: { fontSize: 16, fontWeight: '800', color: '#F8FAFC', letterSpacing: 1.5 },
+    backButtonText: { color: '#94A3B8', fontSize: 13, fontWeight: '800', letterSpacing: 1, fontFamily: FONT_FAMILY_BOLD },
+    headerTitle: { fontSize: 16, fontWeight: '800', color: '#F8FAFC', letterSpacing: 1.5, fontFamily: FONT_FAMILY_BOLD },
     content: { flex: 1, padding: 20 },
     searchContainer: {
-        flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E293B', borderRadius: 16,
+        flexDirection: 'row', alignItems: 'center', backgroundColor: '#1B222C', borderRadius: 16,
         paddingHorizontal: 16, borderWidth: 1, borderColor: '#334155', marginBottom: 20, height: 50
     },
     searchIconBox: { marginRight: 12 },
     searchIcon: { fontSize: 16 },
-    searchInput: { flex: 1, color: '#F8FAFC', fontSize: 14, fontWeight: '600' },
+    searchInput: { flex: 1, color: '#F8FAFC', fontSize: 14, fontWeight: '600', fontFamily: FONT_FAMILY_MEDIUM },
     loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    loaderText: { color: '#94A3B8', marginTop: 16, fontWeight: '700', letterSpacing: 1 },
+    loaderText: { color: '#94A3B8', marginTop: 16, fontWeight: '700', letterSpacing: 1, fontFamily: FONT_FAMILY_MEDIUM },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 24, marginBottom: 16, gap: 12 },
     headerLine: { width: 4, height: 18, borderRadius: 2 },
-    sectionHeaderText: { fontSize: 13, fontWeight: '900', letterSpacing: 1.5 },
-    appRow: { backgroundColor: '#161B22', borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+    sectionHeaderText: { fontSize: 13, fontWeight: '900', letterSpacing: 1.5, fontFamily: FONT_FAMILY_BOLD },
+    appRow: { backgroundColor: '#171E28', borderRadius: 18, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.28, shadowRadius: 18, elevation: 8 },
+    appRowSelected: { borderColor: '#22D3EE', backgroundColor: '#13242B' },
     rowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     appInfo: { flexDirection: 'row', alignItems: 'center', gap: 16, flex: 1 },
-    appIconContainer: { width: 48, height: 48, borderRadius: 12, backgroundColor: '#0F172A', borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+    appIconContainer: { width: 46, height: 46, borderRadius: 12, backgroundColor: '#101826', borderWidth: 1.2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
     nativeAppIcon: { width: '100%', height: '100%' },
-    appName: { fontSize: 16, fontWeight: '800', color: '#F1F5F9' },
-    appStatus: { fontSize: 11, color: '#64748B', marginTop: 2 },
-    timePickerContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    timePickerCol: { alignItems: 'center', gap: 4 },
-    timeSmallLabel: { fontSize: 8, fontWeight: '900', color: '#475569' },
-    timeValueBox: { backgroundColor: '#0F172A', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#334155' },
-    timeValueText: { fontSize: 13, fontWeight: '700', color: '#22D3EE', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-    timeSeparator: { color: '#334155', marginTop: 16 },
-    durationContainer: { marginTop: 20 },
-    durationLabel: { fontSize: 10, fontWeight: '800', color: '#475569', marginBottom: 12, letterSpacing: 1 },
-    durationScroll: { flexDirection: 'row' },
-    durationStep: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#1E293B', marginRight: 10, backgroundColor: '#0F172A' },
-    durationStepText: { fontSize: 12, fontWeight: '600', color: '#64748B' },
-    fab: {
-        position: 'absolute', bottom: 30, right: 20, backgroundColor: '#2563EB',
-        paddingHorizontal: 24, paddingVertical: 16, borderRadius: 30,
-        shadowColor: '#2563EB', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 20, elevation: 15
+    appName: { fontSize: 15, fontWeight: '800', color: '#F1F5F9', fontFamily: FONT_FAMILY_BOLD },
+    appStatus: { fontSize: 11, color: '#64748B', marginTop: 2, fontFamily: FONT_FAMILY_REGULAR },
+    tickBox: { width: 26, height: 26, borderRadius: 13, borderWidth: 1.2, borderColor: '#334155', backgroundColor: '#0F172A', alignItems: 'center', justifyContent: 'center', marginLeft: 12 },
+    tickBoxActive: { borderColor: '#22D3EE', backgroundColor: '#16414D' },
+    tickMark: { color: '#22D3EE', fontSize: 14, fontWeight: '900', fontFamily: FONT_FAMILY_BOLD },
+    selectionHint: { marginTop: 10, color: '#7C8A9D', fontSize: 11, fontFamily: FONT_FAMILY_REGULAR },
+    timerContainer: {
+        marginTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(148, 163, 184, 0.2)',
+        paddingTop: 12,
     },
-    fabText: { color: '#FFF', fontWeight: '900', letterSpacing: 1, fontSize: 14 },
+    timerLabel: {
+        color: '#9AA9BE',
+        fontSize: 11,
+        letterSpacing: 0.4,
+        marginBottom: 10,
+        fontFamily: FONT_FAMILY_MEDIUM,
+    },
+    timerPillsRow: {
+        flexDirection: 'row',
+        gap: 8,
+        flexWrap: 'wrap',
+    },
+    timerPill: {
+        minWidth: 56,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: '#334155',
+        backgroundColor: '#0F172A',
+        alignItems: 'center',
+    },
+    timerPillActive: {
+        borderColor: '#22D3EE',
+        backgroundColor: '#12303A',
+    },
+    timerPillText: {
+        color: '#A8B5C7',
+        fontSize: 11,
+        fontFamily: FONT_FAMILY_BOLD,
+        letterSpacing: 0.7,
+    },
+    timerPillTextActive: {
+        color: '#D7F7FF',
+    },
+    floatingPlus: {
+        position: 'absolute',
+        right: 20,
+        bottom: 110,
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: '#1F3B57',
+        borderWidth: 1,
+        borderColor: '#4A7AA3',
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#0EA5E9',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.35,
+        shadowRadius: 14,
+        elevation: 10,
+    },
+    floatingPlusText: { color: '#E2F4FF', fontSize: 26, lineHeight: 27, fontFamily: FONT_FAMILY_BOLD },
+    confirmBar: {
+        position: 'absolute',
+        left: 20,
+        right: 20,
+        bottom: 24,
+    },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
-    pickerPanel: { backgroundColor: '#161B22', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 40, borderTopWidth: 1, borderColor: '#334155' },
+    pickerPanel: { backgroundColor: '#161B22', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 30, borderTopWidth: 1, borderColor: '#334155' },
     pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
-    pickerTitle: { fontSize: 13, fontWeight: '900', color: '#F8FAFC', letterSpacing: 1.5 },
-    closeText: { fontSize: 12, color: '#94A3B8', fontWeight: '800' },
-    pickerWheelLayout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 200, marginBottom: 30 },
-    pickerColumn: { width: 80 },
-    pickerItem: { height: 40, justifyContent: 'center', alignItems: 'center' },
-    pickerItemText: { fontSize: 24, fontWeight: '600', color: '#475569' },
-    pickerItemTextActive: { fontSize: 28, fontWeight: '900', color: '#22D3EE' },
-    pickerDivider: { fontSize: 32, fontWeight: '900', color: '#334155', marginHorizontal: 20 },
-    pickerItemGlow: { position: 'absolute', width: '100%', height: 2, bottom: 0, backgroundColor: '#22D3EE', opacity: 0.4 },
-    confirmButton: { backgroundColor: '#2563EB', borderRadius: 16, paddingVertical: 20, alignItems: 'center' },
-    confirmButtonText: { color: '#FFF', fontSize: 14, fontWeight: '900', letterSpacing: 2 },
+    pickerTitle: { fontSize: 13, fontWeight: '900', color: '#F8FAFC', letterSpacing: 1.5, fontFamily: FONT_FAMILY_BOLD },
+    closeText: { fontSize: 12, color: '#94A3B8', fontWeight: '800', fontFamily: FONT_FAMILY_MEDIUM },
+    confirmButton: { backgroundColor: '#2563EB', borderRadius: 16, paddingVertical: 18, alignItems: 'center', borderWidth: 1, borderColor: '#3B82F6' },
+    confirmButtonText: { color: '#FFF', fontSize: 14, fontWeight: '900', letterSpacing: 1.4, fontFamily: FONT_FAMILY_BOLD },
     searchAppRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1E293B' },
-    fabContainer: {
-        position: 'absolute', bottom: 30, left: 20, right: 20,
-        flexDirection: 'row', alignItems: 'center', gap: 10
-    }
+    expansionAddText: { color: '#22D3EE', fontSize: 20, fontFamily: FONT_FAMILY_BOLD },
 });

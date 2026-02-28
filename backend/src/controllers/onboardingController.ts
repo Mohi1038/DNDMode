@@ -4,12 +4,28 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'permanent_secret_key_456';
 
 export const completeOnboarding = (req: Request, res: Response) => {
-    const { answers } = req.body;
-    // expects answers: { q1_attention, q2_decision, q3_emotion, q4_social, q5_discipline }
-    // Answers are indexes 0-3 (A-D)
+    console.log('--- ONBOARDING COMPLETION REQUEST ---');
+    console.log(JSON.stringify(req.body, null, 2));
+
+    const { personality, long_term_goals, short_term_goals } = req.body;
+    const answers = personality?.answers;
 
     if (!answers) {
-        return res.status(400).json({ message: 'Answers are required' });
+        return res.status(400).json({ message: 'Neural personality answers are missing from payload.' });
+    }
+
+    const requiredKeys = ['q1_attention', 'q2_decision', 'q3_emotion', 'q4_social', 'q5_discipline'];
+    const missing = requiredKeys.filter(k => answers[k] === null || answers[k] === undefined);
+
+    if (missing.length > 0) {
+        return res.status(400).json({
+            message: `Neural synchronization failed: Missing responses for ${missing.join(', ')}.`,
+            missingFields: missing
+        });
+    }
+
+    if (!Array.isArray(long_term_goals) || !Array.isArray(short_term_goals)) {
+        return res.status(400).json({ message: 'Neural mission objectives (goals) are missing or improperly formatted.' });
     }
 
     // Scoring Logic based on the Architecture Doc
@@ -59,12 +75,12 @@ export const completeOnboarding = (req: Request, res: Response) => {
     scores.sort((a, b) => b.score - a.score);
     const archetype = scores[0].name;
 
-    // Extract user from middleware
-    const user = (req as any).user;
+    // Extract user from body (no JWT for now)
+    const userId = req.body.user_id || 'unknown_user';
 
     // Create permanent full access token
     const accessTokenPayload = {
-        email: user?.email || 'unknown@example.com',
+        email: userId,
         archetype,
         scope: 'full_access'
     };

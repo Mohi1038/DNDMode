@@ -9,9 +9,10 @@ import {
     KeyboardAvoidingView,
     Platform,
     Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { useOnboardingStore } from '../store/useOnboardingStore';
-import { API_CONFIG } from '../config/apiConfig';
+import { API_CONFIG, getApiBaseCandidates } from '../config/apiConfig';
 
 interface LoginScreenProps {
     onSignUpPress: () => void;
@@ -20,31 +21,67 @@ interface LoginScreenProps {
 const LoginScreen = ({ onSignUpPress }: LoginScreenProps) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
     const setTempAuth = useOnboardingStore((state) => state.setTempAuth);
 
+    const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs = 3500) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            return await fetch(url, { ...options, signal: controller.signal });
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    };
+
     const handleLogin = async () => {
+        if (isLoggingIn) {
+            return;
+        }
+
         if (!email || !password) {
             Alert.alert('Error', 'Please enter both email and password.');
             return;
         }
 
-        try {
-            const res = await fetch(`${API_CONFIG.BASE_URL}/api/auth/verify-initial`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password }),
-            });
-            const data = await res.json();
+        setIsLoggingIn(true);
 
-            if (res.ok) {
-                // This will automatically trigger App.tsx to render the ProfilingFlow
-                setTempAuth(data.tempToken, email);
-            } else {
+        const candidates = [API_CONFIG.BASE_URL, ...getApiBaseCandidates()]
+            .filter((url, index, arr) => arr.indexOf(url) === index);
+
+        let lastNetworkError: unknown = null;
+
+        for (const baseUrl of candidates) {
+            try {
+                const res = await fetchWithTimeout(
+                    `${baseUrl}/api/auth/verify-initial`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, password }),
+                    },
+                    3500
+                );
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    setTempAuth(data.tempToken, email);
+                    setIsLoggingIn(false);
+                    return;
+                }
+
                 Alert.alert('Login failed', data.message || 'Verification failed');
+                setIsLoggingIn(false);
+                return;
+            } catch (error) {
+                lastNetworkError = error;
             }
-        } catch (error) {
-            Alert.alert('Error', 'Could not connect to the backend server.');
         }
+
+        console.warn('Login network attempts failed:', lastNetworkError);
+        Alert.alert('Error', 'Could not connect to the backend server.');
+        setIsLoggingIn(false);
     };
 
     const handleGoogleLogin = () => {
@@ -93,8 +130,19 @@ const LoginScreen = ({ onSignUpPress }: LoginScreenProps) => {
                             <Text style={styles.forgotPasswordText}>Forgot password?</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-                            <Text style={styles.loginButtonText}>Log In</Text>
+                        <TouchableOpacity
+                            style={[styles.loginButton, isLoggingIn && styles.loginButtonDisabled]}
+                            onPress={handleLogin}
+                            disabled={isLoggingIn}
+                        >
+                            {isLoggingIn ? (
+                                <View style={styles.loginButtonLoadingRow}>
+                                    <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+                                    <Text style={styles.loginButtonText}>Logging in...</Text>
+                                </View>
+                            ) : (
+                                <Text style={styles.loginButtonText}>Log In</Text>
+                            )}
                         </TouchableOpacity>
 
                         <View style={styles.dividerContainer}>
@@ -184,6 +232,14 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         alignItems: 'center',
         marginBottom: 24,
+    },
+    loginButtonDisabled: {
+        opacity: 0.85,
+    },
+    loginButtonLoadingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     loginButtonText: {
         color: '#FFFFFF',
