@@ -78,12 +78,25 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
 
     namespace "com.app"
+
+    // Read SERVER_URL from .env file
+    def envFile = file("../../.env")
+    def serverUrl = "http://localhost:5000" // fallback default
+    if (envFile.exists()) {
+        envFile.eachLine { line ->
+            if (line.startsWith("SERVER_URL=")) {
+                serverUrl = line.replace("SERVER_URL=", "").trim()
+            }
+        }
+    }
+
     defaultConfig {
         applicationId "com.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        buildConfigField "String", "SERVER_URL", "\"${serverUrl}\""
     }
     signingConfigs {
         debug {
@@ -104,6 +117,9 @@ android {
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
+    }
+    buildFeatures {
+        buildConfig true
     }
 }
 

@@ -2,11 +2,22 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView,
     Animated, Modal, Platform, Alert, Easing, Vibration, ActivityIndicator,
-    TextInput, Image, FlatList
+    TextInput, Image, FlatList, NativeModules
 } from 'react-native';
 import { useOnboardingStore } from '../store/useOnboardingStore';
-import { launchImageLibrary } from 'react-native-image-picker';
 import { API_CONFIG } from '../config/apiConfig';
+
+// Safe wrapper: check if the NATIVE module exists before using the JS wrapper
+const _imagePickerAvailable = !!NativeModules.ImagePickerModule;
+let _launchImageLibrary: any = null;
+if (_imagePickerAvailable) {
+    try {
+        const picker = require('react-native-image-picker');
+        _launchImageLibrary = picker.launchImageLibrary;
+    } catch (e) {
+        console.warn('react-native-image-picker JS module not found');
+    }
+}
 import FocusModeScreen from './FocusModeScreen';
 import GroupDashboardScreen from './GroupDashboardScreen';
 import DigitalGovernanceScreen from './DigitalGovernanceScreen';
@@ -136,7 +147,12 @@ export default function MainLandingPage() {
             Animated.timing(uploadBtnScale, { toValue: 1, duration: 150, useNativeDriver: true })
         ]).start();
 
-        const result = await launchImageLibrary({
+        if (!_launchImageLibrary) {
+            Alert.alert('Not Available', 'Image picker native module is not linked. Please rebuild the app.');
+            return;
+        }
+
+        const result = await _launchImageLibrary({
             mediaType: 'photo',
             includeBase64: false,
         });

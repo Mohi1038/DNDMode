@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView,
     Animated, Modal, Platform, Alert, Easing, Vibration, ActivityIndicator,
-    TextInput, Image, FlatList
+    TextInput, Image, FlatList, NativeModules
 } from 'react-native';
 import { useOnboardingStore } from '../store/useOnboardingStore';
-import { InstalledApps } from 'react-native-launcher-kit';
 import { triggerHaptic } from '../utils/haptics';
+
+const { InstalledAppsModule } = NativeModules;
 
 export interface AppSchedule {
     id: string;
@@ -52,31 +53,25 @@ export default function DigitalGovernanceScreen({ onBack, onPropose, isSyncing }
     const fetchAppProtocols = async () => {
         setIsLoadingApps(true);
         try {
-            const apps = await InstalledApps.getSortedApps({
-                includeAccentColor: true,
-                includeVersion: false
-            });
+            if (!InstalledAppsModule) {
+                console.warn('InstalledAppsModule native module not available');
+                setAllDeviceApps([]);
+                setAppSchedules([]);
+                setFilteredApps([]);
+                setIsLoadingApps(false);
+                return;
+            }
+            const apps = await InstalledAppsModule.getSortedApps();
 
-            const formattedApps: AppSchedule[] = apps.map(app => {
-                let cleanIcon = app.icon;
-                if (cleanIcon && cleanIcon.startsWith('file://')) {
-                    // OK
-                } else if (cleanIcon && cleanIcon.length > 50) {
-                    const sanitized = cleanIcon.replace(/\s/g, '');
-                    const base64 = sanitized.includes('base64,') ? sanitized.split('base64,')[1] : sanitized;
-                    cleanIcon = `data:image/png;base64,${base64}`;
-                } else {
-                    cleanIcon = '';
-                }
-
+            const formattedApps: AppSchedule[] = apps.map((app: any) => {
                 return {
                     id: app.packageName,
                     name: app.label || 'Unknown Interface',
-                    icon: cleanIcon,
+                    icon: app.icon || '',
                     start: '09:00',
                     end: '17:00',
                     duration: 8,
-                    color: app.accentColor || '#38BDF8',
+                    color: '#38BDF8',
                     isNative: true
                 };
             });

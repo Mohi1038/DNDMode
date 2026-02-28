@@ -92,6 +92,8 @@ export default function ProfilingFlow() {
                     body: JSON.stringify({ answers: finalAnswers })
                 });
 
+                console.log("Response:", response);
+
                 const data = await response.json();
                 setLoading(false);
 
