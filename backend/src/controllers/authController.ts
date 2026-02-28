@@ -27,3 +27,25 @@ export const verifyInitial = (req: Request, res: Response) => {
         tempToken,
     });
 };
+
+export const signup = (req: Request, res: Response) => {
+    const { name, email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    // TODO: In a real app, create user in database
+    const tempTokenPayload = {
+        email,
+        name: name || email.split('@')[0],
+        scope: 'onboarding',
+    };
+
+    const tempToken = jwt.sign(tempTokenPayload, TEMP_JWT_SECRET, { expiresIn: '30m' });
+
+    return res.status(201).json({
+        message: 'Account created successfully. Proceed to onboarding.',
+        tempToken,
+    });
+};

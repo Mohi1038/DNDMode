@@ -13,7 +13,11 @@ import {
 import { useOnboardingStore } from '../store/useOnboardingStore';
 import { API_CONFIG } from '../config/apiConfig';
 
-const LoginScreen = () => {
+interface LoginScreenProps {
+    onSignUpPress: () => void;
+}
+
+const LoginScreen = ({ onSignUpPress }: LoginScreenProps) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const setTempAuth = useOnboardingStore((state) => state.setTempAuth);
@@ -106,7 +110,7 @@ const LoginScreen = () => {
 
                     <View style={styles.footer}>
                         <Text style={styles.footerText}>Don't have an account? </Text>
-                        <TouchableOpacity>
+                        <TouchableOpacity onPress={onSignUpPress}>
                             <Text style={styles.signupText}>Sign up</Text>
                         </TouchableOpacity>
                     </View>
