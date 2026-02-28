@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import com.app.focusmode.BlockingActivity
 import org.json.JSONObject
 import java.util.Calendar
 import java.util.concurrent.ConcurrentHashMap
@@ -87,6 +88,47 @@ object AppTimerManager {
             }
         }
         return newlyBlocked
+    }
+
+    /**
+     * Called by React Native via WebSocket or JS sync.
+     * Updates remaining time. If <= 0, blocks app immediately.
+     */
+    fun updateRemainingTime(ctx: Context, packageName: String, remainingSeconds: Int) {
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        
+        // Save remaining time for WS/Group logic without disrupting regular limit timers.
+        val groupJson = JSONObject(prefs.getString("group_timers_json", "{}") ?: "{}")
+        groupJson.put(packageName, remainingSeconds)
+        prefs.edit().putString("group_timers_json", groupJson.toString()).apply()
+
+        if (remainingSeconds <= 0) {
+            // Block
+            val wasBlocked = blockedApps.put(packageName, true)
+            if (wasBlocked == null || wasBlocked == false) {
+                Log.d(TAG, "WS update: BLOCKED $packageName")
+                // Launch blocking activity immediately
+                val intent = Intent(ctx, BlockingActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                    putExtra("block_reason", "timer")
+                    putExtra("blocked_package", packageName)
+                }
+                try {
+                    ctx.startActivity(intent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "WS update: Failed to launch BlockingActivity for $packageName", e)
+                }
+            }
+        } else {
+            // Unblock
+            val wasBlocked = blockedApps.remove(packageName)
+            if (wasBlocked == true) {
+                Log.d(TAG, "WS update: UNBLOCKED $packageName")
+            }
+        }
     }
 
     /**

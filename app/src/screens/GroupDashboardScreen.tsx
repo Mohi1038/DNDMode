@@ -6,6 +6,9 @@ import {
 } from 'react-native';
 import { API_CONFIG } from '../config/apiConfig';
 import DigitalGovernanceScreen, { AppSchedule } from './DigitalGovernanceScreen';
+import { updateRemainingTime } from '../services/AppTimerService';
+import { digitalWellbeingService } from '../services/digitalWellbeingService';
+import { AppState } from 'react-native';
 
 const { InstalledAppsModule } = NativeModules;
 
@@ -33,11 +36,16 @@ export default function GroupDashboardScreen({ groupId, userName, onExit }: Grou
     const [showTotalTimeModal, setShowTotalTimeModal] = useState(false);
     const [totalTimeInput, setTotalTimeInput] = useState('');
     const wsRef = useRef<WebSocket | null>(null);
-    const appBackgroundAtRef = useRef<number | null>(null);
+    const usageBaselineRef = useRef<{ [pkg: string]: number }>({});
+    const groupDataRef = useRef<any>(null);
 
     const currentUserMember = Array.isArray(groupData?.members)
         ? groupData.members.find((m: any) => String(m?.name || '').toLowerCase() === String(userName || '').toLowerCase())
         : null;
+
+    useEffect(() => {
+        groupDataRef.current = groupData;
+    }, [groupData]);
 
     useEffect(() => {
         fetchGroupStatus();
@@ -63,6 +71,12 @@ export default function GroupDashboardScreen({ groupId, userName, onExit }: Grou
                 if (payload?.type === 'group:update' && payload?.group) {
                     setGroupData(payload.group);
                     setIsLoading(false);
+                } else if (payload?.type === 'TIME_UPDATE' && payload?.data) {
+                    // Update remaining time locally via Kotlin native module
+                    Object.entries(payload.data).forEach(([packageName, remainingSeconds]) => {
+                        updateRemainingTime(packageName, remainingSeconds as number)
+                            .catch(e => console.error(`Failed to update remaining time for ${packageName}`, e));
+                    });
                 }
             } catch {
                 // ignore malformed payload
@@ -87,6 +101,79 @@ export default function GroupDashboardScreen({ groupId, userName, onExit }: Grou
 
         return () => clearInterval(tick);
     }, []);
+
+    // Usage reporting effect
+    useEffect(() => {
+        let isChecking = false;
+
+        const checkUsage = async () => {
+            if (isChecking) return;
+            const currentGroup = groupDataRef.current;
+            if (!currentGroup?.sessionStarted) return;
+
+            const me = currentGroup.members?.find((m: any) => String(m?.name || '').toLowerCase() === String(userName || '').toLowerCase());
+            if (!me || !me.selectedApps || me.selectedApps.length === 0) return;
+
+            isChecking = true;
+            try {
+                const stats = await digitalWellbeingService.getTodayUsageStats();
+
+                for (const app of me.selectedApps) {
+                    const pkg = app.packageName;
+                    const stat = stats.find(s => s.packageName === pkg);
+                    if (!stat) continue;
+
+                    const currentForegroundMs = stat.totalTimeInForeground;
+                    const previousForegroundMs = usageBaselineRef.current[pkg];
+
+                    if (previousForegroundMs !== undefined) {
+                        const deltaMs = currentForegroundMs - previousForegroundMs;
+                        // To avoid spamming, only report if delta is at least 30 seconds
+                        if (deltaMs >= 30000) {
+                            const usedMins = deltaMs / 60000;
+
+                            // Immediately update baseline to avoid double reporting
+                            usageBaselineRef.current[pkg] = currentForegroundMs;
+
+                            try {
+                                await fetch(`${API_CONFIG.BASE_URL}/api/groups/${groupId}/usage-event`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ userName, appPackageName: pkg, usedMins })
+                                });
+                                console.log(`[Usage] Reported ${usedMins.toFixed(2)} mins for ${pkg}`);
+                            } catch (e) {
+                                console.error('[Usage] Failed to report', e);
+                                // Revert baseline if failed
+                                usageBaselineRef.current[pkg] = previousForegroundMs;
+                            }
+                        }
+                    } else {
+                        // Initialize baseline
+                        usageBaselineRef.current[pkg] = currentForegroundMs;
+                    }
+                }
+            } catch (err) {
+                console.error('[Usage Check Error]', err);
+            } finally {
+                isChecking = false;
+            }
+        };
+
+        const usageInterval = setInterval(checkUsage, 10000); // Check every 10s
+
+        // Also check when app comes to foreground
+        const subscription = AppState.addEventListener('change', nextAppState => {
+            if (nextAppState === 'active') {
+                checkUsage();
+            }
+        });
+
+        return () => {
+            clearInterval(usageInterval);
+            subscription.remove();
+        };
+    }, [groupId, userName]);
 
     const fetchInstalledApps = async () => {
         try {
@@ -316,67 +403,116 @@ export default function GroupDashboardScreen({ groupId, userName, onExit }: Grou
             </View>
         ) : (
             <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <TouchableOpacity onPress={onExit} style={styles.backBtn}>
-                    <Text style={styles.backBtnText}>← EXIT</Text>
-                </TouchableOpacity>
-                <Text style={styles.title}>{groupData?.name.toUpperCase()}</Text>
-                <View style={{ width: 60 }} />
-            </View>
-
-            <ScrollView contentContainerStyle={styles.scroll}>
-                <View style={styles.codeCard}>
-                    <Text style={styles.codeLabel}>ENTRY PROTOCOL CODE</Text>
-                    <Text style={styles.codeValue}>{groupData?.code}</Text>
-                    <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
-                        <Text style={styles.shareBtnText}>SHARE INVITE</Text>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={onExit} style={styles.backBtn}>
+                        <Text style={styles.backBtnText}>← EXIT</Text>
                     </TouchableOpacity>
+                    <Text style={styles.title}>{groupData?.name.toUpperCase()}</Text>
+                    <View style={{ width: 60 }} />
                 </View>
 
-                <View style={styles.sectionHeaderRow}>
-                    <Text style={styles.sectionTitle}>NEURAL NODES (MEMBERS)</Text>
-                    <TouchableOpacity
-                        style={styles.proposeBtn}
-                        onPress={() => {
-                            const myTotal = Number(currentUserMember?.totalMobileMins) || 0;
-                            if (myTotal <= 0) {
-                                Alert.alert('Set Total Time First', 'Set your total mobile time in group before configuring apps.');
-                                return;
-                            }
-                            setShowAppPicker(true);
-                        }}
-                    >
-                        <Text style={styles.proposeBtnText}>CHOOSE APPS</Text>
-                    </TouchableOpacity>
-                </View>
+                <ScrollView contentContainerStyle={styles.scroll}>
+                    <View style={styles.codeCard}>
+                        <Text style={styles.codeLabel}>ENTRY PROTOCOL CODE</Text>
+                        <Text style={styles.codeValue}>{groupData?.code}</Text>
+                        <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
+                            <Text style={styles.shareBtnText}>SHARE INVITE</Text>
+                        </TouchableOpacity>
+                    </View>
 
-                <View style={styles.myTotalCard}>
-                    <Text style={styles.myTotalLabel}>MY TOTAL MOBILE TIME</Text>
-                    <Text style={styles.myTotalValue}>{Number(currentUserMember?.totalMobileMins) || 0}m</Text>
-                    <TouchableOpacity style={styles.setTotalBtn} onPress={() => setShowTotalTimeModal(true)}>
-                        <Text style={styles.setTotalBtnText}>SET / UPDATE TOTAL</Text>
-                    </TouchableOpacity>
-                </View>
+                    <View style={styles.sectionHeaderRow}>
+                        <Text style={styles.sectionTitle}>NEURAL NODES (MEMBERS)</Text>
+                        <TouchableOpacity
+                            style={styles.proposeBtn}
+                            onPress={() => {
+                                const myTotal = Number(currentUserMember?.totalMobileMins) || 0;
+                                if (myTotal <= 0) {
+                                    Alert.alert('Set Total Time First', 'Set your total mobile time in group before configuring apps.');
+                                    return;
+                                }
+                                setShowAppPicker(true);
+                            }}
+                        >
+                            <Text style={styles.proposeBtnText}>CHOOSE APPS</Text>
+                        </TouchableOpacity>
+                    </View>
 
-                <View style={styles.memberList}>
-                    {groupData?.members.map((member: any, index: number) => {
-                        const memberName = String(member?.name || 'Unknown');
-                        return (
-                        <View key={member?.id || `${memberName}-${index}`} style={styles.memberRow}>
-                            <View style={styles.memberAvatar}>
-                                <Text style={styles.avatarText}>{memberName.charAt(0).toUpperCase() || '?'}</Text>
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.memberName}>{memberName} {memberName === userName ? '(YOU)' : ''}</Text>
-                                <Text style={styles.memberTotalText}>TOTAL: {Number(member?.totalMobileMins) || 0}m | ALLOCATED: {getMemberTotalMins(member)}m</Text>
-                                <Text style={styles.memberPenaltyText}>-POINTS: {Number(member?.negativePoints) || 0}</Text>
-                                <View style={styles.roleTag}>
-                                    <Text style={[styles.roleText, member.role === 'Admin' ? styles.adminText : styles.buddyText]}>
-                                        {member.role === 'Admin' ? 'ADMIN' : 'BUDDY'}
-                                    </Text>
+                    <View style={styles.myTotalCard}>
+                        <Text style={styles.myTotalLabel}>MY TOTAL MOBILE TIME</Text>
+                        <Text style={styles.myTotalValue}>{Number(currentUserMember?.totalMobileMins) || 0}m</Text>
+                        <TouchableOpacity style={styles.setTotalBtn} onPress={() => setShowTotalTimeModal(true)}>
+                            <Text style={styles.setTotalBtnText}>SET / UPDATE TOTAL</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.memberList}>
+                        {groupData?.members.map((member: any, index: number) => {
+                            const memberName = String(member?.name || 'Unknown');
+                            return (
+                                <View key={member?.id || `${memberName}-${index}`} style={styles.memberRow}>
+                                    <View style={styles.memberAvatar}>
+                                        <Text style={styles.avatarText}>{memberName.charAt(0).toUpperCase() || '?'}</Text>
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.memberName}>{memberName} {memberName === userName ? '(YOU)' : ''}</Text>
+                                        <Text style={styles.memberTotalText}>TOTAL: {Number(member?.totalMobileMins) || 0}m | ALLOCATED: {getMemberTotalMins(member)}m</Text>
+                                        <Text style={styles.memberPenaltyText}>-POINTS: {Number(member?.negativePoints) || 0}</Text>
+                                        <View style={styles.roleTag}>
+                                            <Text style={[styles.roleText, member.role === 'Admin' ? styles.adminText : styles.buddyText]}>
+                                                {member.role === 'Admin' ? 'ADMIN' : 'BUDDY'}
+                                            </Text>
+                                        </View>
+                                        {member.selectedApps && member.selectedApps.length > 0 && (
+                                            <View style={styles.proposedAppsList}>
+                                                {member.selectedApps.map((appItem: any) => {
+                                                    const pkg = typeof appItem === 'string'
+                                                        ? appItem
+                                                        : (typeof appItem?.packageName === 'string' ? appItem.packageName : '');
+                                                    if (!pkg) {
+                                                        return null;
+                                                    }
+                                                    const app = installedApps.find(a => a.packageName === pkg);
+                                                    const appLabel = typeof appItem === 'object' && appItem?.appName
+                                                        ? appItem.appName
+                                                        : app?.label || pkg.split('.').pop() || 'App';
+                                                    return (
+                                                        <View key={pkg} style={styles.proposedAppTag}>
+                                                            <Text style={styles.proposedAppText}>{appLabel}</Text>
+                                                        </View>
+                                                    );
+                                                })}
+                                            </View>
+                                        )}
+                                    </View>
+                                    <View style={styles.onlineStatus} />
                                 </View>
-                                {member.selectedApps && member.selectedApps.length > 0 && (
-                                    <View style={styles.proposedAppsList}>
+                            );
+                        })}
+                    </View>
+
+                    {groupData?.lastPenalty && (
+                        <View style={styles.penaltyBanner}>
+                            <Text style={styles.penaltyBannerText}>
+                                LAST LOSS: {groupData.lastPenalty.offenderName} used +{groupData.lastPenalty.usedMins}m,
+                                others total reduced.
+                            </Text>
+                        </View>
+                    )}
+
+                    <Text style={styles.sectionTitle}>COLLABORATIVE GOVERNANCE</Text>
+                    <View style={styles.timerCard}>
+                        {groupData?.members?.every((member: any) => !member.selectedApps || member.selectedApps.length === 0) ? (
+                            <Text style={styles.emptyText}>NO APPS CHOSEN YET</Text>
+                        ) : (
+                            groupData?.members.map((member: any) => {
+                                if (!member.selectedApps || member.selectedApps.length === 0) return null;
+
+                                return (
+                                    <View key={`member-timer-${member.id}`} style={styles.memberTimerBlock}>
+                                        <View style={styles.memberTimerHeader}>
+                                            <Text style={styles.memberTimerTitle}>{member.name} {member.name === userName ? '(YOU)' : ''}</Text>
+                                            <Text style={styles.memberTotalInline}>TOTAL {Number(member?.totalMobileMins) || 0}m</Text>
+                                        </View>
                                         {member.selectedApps.map((appItem: any) => {
                                             const pkg = typeof appItem === 'string'
                                                 ? appItem
@@ -384,128 +520,79 @@ export default function GroupDashboardScreen({ groupId, userName, onExit }: Grou
                                             if (!pkg) {
                                                 return null;
                                             }
-                                            const app = installedApps.find(a => a.packageName === pkg);
-                                            const appLabel = typeof appItem === 'object' && appItem?.appName
-                                                ? appItem.appName
-                                                : app?.label || pkg.split('.').pop() || 'App';
+                                            const fallbackLabel = installedApps.find((a) => a.packageName === pkg)?.label || pkg.split('.').pop() || 'App';
+                                            const appName = typeof appItem === 'object' && appItem?.appName ? appItem.appName : fallbackLabel;
+                                            const durationMins = Number(typeof appItem === 'object' ? appItem?.durationMins : 10) || 10;
+                                            const remainingSeconds = (durationMins * 60) - elapsedSeconds;
+                                            const isTotalLocked = (Number(member?.totalMobileMins) || 0) <= 0;
+                                            const isLocked = Boolean(isTotalLocked || durationMins <= 0 || (groupData?.sessionStarted && remainingSeconds <= 0));
+
                                             return (
-                                                <View key={pkg} style={styles.proposedAppTag}>
-                                                    <Text style={styles.proposedAppText}>{appLabel}</Text>
+                                                <View key={`${member.id}-${pkg}`} style={styles.timerRow}>
+                                                    <View style={{ flex: 1, paddingRight: 8 }}>
+                                                        <Text style={styles.appNameDisplay}>{appName}</Text>
+                                                        <Text style={styles.appPkgText}>{pkg}</Text>
+                                                    </View>
+                                                    <View style={styles.timerRightCol}>
+                                                        <Text style={[styles.durationMins, isLocked && styles.lockedTimeText]}>
+                                                            {isTotalLocked ? '00:00' : (groupData?.sessionStarted ? formatRemaining(remainingSeconds) : `${durationMins}m`)}
+                                                        </Text>
+                                                        <Text style={[styles.lockStateText, isLocked ? styles.lockedState : styles.activeState]}>
+                                                            {isLocked ? 'LOCKED' : 'ACTIVE'}
+                                                        </Text>
+                                                    </View>
                                                 </View>
                                             );
                                         })}
                                     </View>
-                                )}
+                                );
+                            })
+                        )}
+                    </View>
+
+                </ScrollView>
+
+                <Modal visible={showAppPicker} animationType="slide" presentationStyle="fullScreen">
+                    <DigitalGovernanceScreen
+                        onBack={() => setShowAppPicker(false)}
+                        isSyncing={isSyncing}
+                        maxTotalMins={Number(currentUserMember?.totalMobileMins) || 0}
+                        initialSchedules={Array.isArray(currentUserMember?.selectedApps)
+                            ? currentUserMember.selectedApps.map((app: any) => ({
+                                id: app.packageName,
+                                name: app.appName,
+                                durationMins: Number(app.durationMins) || 0,
+                            }))
+                            : []}
+                        onPropose={(apps: AppSchedule[]) => {
+                            proposeApps(apps);
+                        }}
+                    />
+                </Modal>
+
+                <Modal visible={showTotalTimeModal} transparent animationType="fade">
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.totalTimePanel}>
+                            <Text style={styles.totalTitle}>SET TOTAL MOBILE TIME</Text>
+                            <TextInput
+                                style={styles.totalInput}
+                                keyboardType="numeric"
+                                placeholder="Enter minutes (e.g. 180)"
+                                placeholderTextColor="#64748B"
+                                value={totalTimeInput}
+                                onChangeText={setTotalTimeInput}
+                            />
+                            <View style={styles.totalButtonsRow}>
+                                <TouchableOpacity style={styles.totalCancelBtn} onPress={() => setShowTotalTimeModal(false)}>
+                                    <Text style={styles.totalCancelText}>CANCEL</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.totalSaveBtn} onPress={setMyTotalTime}>
+                                    <Text style={styles.totalSaveText}>SAVE</Text>
+                                </TouchableOpacity>
                             </View>
-                            <View style={styles.onlineStatus} />
-                        </View>
-                        );
-                    })}
-                </View>
-
-                {groupData?.lastPenalty && (
-                    <View style={styles.penaltyBanner}>
-                        <Text style={styles.penaltyBannerText}>
-                            LAST LOSS: {groupData.lastPenalty.offenderName} used +{groupData.lastPenalty.usedMins}m,
-                            others total reduced.
-                        </Text>
-                    </View>
-                )}
-
-                <Text style={styles.sectionTitle}>COLLABORATIVE GOVERNANCE</Text>
-                <View style={styles.timerCard}>
-                    {groupData?.members?.every((member: any) => !member.selectedApps || member.selectedApps.length === 0) ? (
-                        <Text style={styles.emptyText}>NO APPS CHOSEN YET</Text>
-                    ) : (
-                        groupData?.members.map((member: any) => {
-                            if (!member.selectedApps || member.selectedApps.length === 0) return null;
-
-                            return (
-                                <View key={`member-timer-${member.id}`} style={styles.memberTimerBlock}>
-                                    <View style={styles.memberTimerHeader}>
-                                        <Text style={styles.memberTimerTitle}>{member.name} {member.name === userName ? '(YOU)' : ''}</Text>
-                                        <Text style={styles.memberTotalInline}>TOTAL {Number(member?.totalMobileMins) || 0}m</Text>
-                                    </View>
-                                    {member.selectedApps.map((appItem: any) => {
-                                        const pkg = typeof appItem === 'string'
-                                            ? appItem
-                                            : (typeof appItem?.packageName === 'string' ? appItem.packageName : '');
-                                        if (!pkg) {
-                                            return null;
-                                        }
-                                        const fallbackLabel = installedApps.find((a) => a.packageName === pkg)?.label || pkg.split('.').pop() || 'App';
-                                        const appName = typeof appItem === 'object' && appItem?.appName ? appItem.appName : fallbackLabel;
-                                        const durationMins = Number(typeof appItem === 'object' ? appItem?.durationMins : 10) || 10;
-                                        const remainingSeconds = (durationMins * 60) - elapsedSeconds;
-                                        const isTotalLocked = (Number(member?.totalMobileMins) || 0) <= 0;
-                                        const isLocked = Boolean(isTotalLocked || durationMins <= 0 || (groupData?.sessionStarted && remainingSeconds <= 0));
-
-                                        return (
-                                            <View key={`${member.id}-${pkg}`} style={styles.timerRow}>
-                                                <View style={{ flex: 1, paddingRight: 8 }}>
-                                                    <Text style={styles.appNameDisplay}>{appName}</Text>
-                                                    <Text style={styles.appPkgText}>{pkg}</Text>
-                                                </View>
-                                                <View style={styles.timerRightCol}>
-                                                    <Text style={[styles.durationMins, isLocked && styles.lockedTimeText]}>
-                                                        {isTotalLocked ? '00:00' : (groupData?.sessionStarted ? formatRemaining(remainingSeconds) : `${durationMins}m`)}
-                                                    </Text>
-                                                    <Text style={[styles.lockStateText, isLocked ? styles.lockedState : styles.activeState]}>
-                                                        {isLocked ? 'LOCKED' : 'ACTIVE'}
-                                                    </Text>
-                                                </View>
-                                            </View>
-                                        );
-                                    })}
-                                </View>
-                            );
-                        })
-                    )}
-                </View>
-
-            </ScrollView>
-
-            <Modal visible={showAppPicker} animationType="slide" presentationStyle="fullScreen">
-                <DigitalGovernanceScreen
-                    onBack={() => setShowAppPicker(false)}
-                    isSyncing={isSyncing}
-                    maxTotalMins={Number(currentUserMember?.totalMobileMins) || 0}
-                    initialSchedules={Array.isArray(currentUserMember?.selectedApps)
-                        ? currentUserMember.selectedApps.map((app: any) => ({
-                            id: app.packageName,
-                            name: app.appName,
-                            durationMins: Number(app.durationMins) || 0,
-                        }))
-                        : []}
-                    onPropose={(apps: AppSchedule[]) => {
-                        proposeApps(apps);
-                    }}
-                />
-            </Modal>
-
-            <Modal visible={showTotalTimeModal} transparent animationType="fade">
-                <View style={styles.modalOverlay}>
-                    <View style={styles.totalTimePanel}>
-                        <Text style={styles.totalTitle}>SET TOTAL MOBILE TIME</Text>
-                        <TextInput
-                            style={styles.totalInput}
-                            keyboardType="numeric"
-                            placeholder="Enter minutes (e.g. 180)"
-                            placeholderTextColor="#64748B"
-                            value={totalTimeInput}
-                            onChangeText={setTotalTimeInput}
-                        />
-                        <View style={styles.totalButtonsRow}>
-                            <TouchableOpacity style={styles.totalCancelBtn} onPress={() => setShowTotalTimeModal(false)}>
-                                <Text style={styles.totalCancelText}>CANCEL</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.totalSaveBtn} onPress={setMyTotalTime}>
-                                <Text style={styles.totalSaveText}>SAVE</Text>
-                            </TouchableOpacity>
                         </View>
                     </View>
-                </View>
-            </Modal>
+                </Modal>
 
             </SafeAreaView>
         )

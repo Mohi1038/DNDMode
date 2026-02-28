@@ -2,11 +2,9 @@ import React from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type TimetableRow = {
-    day: string;
-    start_time?: string;
-    end_time?: string;
-    subject?: string;
-    code?: string;
+    time_slot: string;
+    task_name: string;
+    estimated_minutes: number;
 };
 
 const FONT_FAMILY_REGULAR = 'sans-serif';
@@ -21,13 +19,13 @@ const buildRows = (rawTimetable: any): TimetableRow[] => {
     }
 
     if (Array.isArray(rawTimetable)) {
-        return rawTimetable.map((item: any) => ({
-            day: titleCase(item?.day || 'Unknown'),
-            start_time: item?.start_time || item?.time || '-',
-            end_time: item?.end_time || '-',
-            subject: item?.subject || item?.description || '-',
-            code: item?.code || '-',
-        }));
+        return rawTimetable.map((item: any) => {
+            return {
+                time_slot: item?.time_slot || item?.start_time || item?.time || '-',
+                task_name: item?.task_name || item?.subject || item?.description || '-',
+                estimated_minutes: item?.estimated_minutes || 0,
+            };
+        });
     }
 
     if (typeof rawTimetable === 'object') {
@@ -37,11 +35,9 @@ const buildRows = (rawTimetable: any): TimetableRow[] => {
             }
 
             return entries.map((item: any) => ({
-                day: titleCase(day),
-                start_time: item?.start_time || item?.time || '-',
-                end_time: item?.end_time || '-',
-                subject: item?.subject || item?.description || '-',
-                code: item?.code || '-',
+                time_slot: item?.time_slot || item?.start_time || item?.time || '-',
+                task_name: item?.task_name || item?.subject || item?.description || '-',
+                estimated_minutes: item?.estimated_minutes || 0,
             }));
         });
     }
@@ -77,20 +73,18 @@ export default function SuggestedTimetableScreen({
                 <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
                     <View style={styles.table}>
                         <View style={[styles.row, styles.headRow]}>
-                            <Text style={[styles.cell, styles.dayCol, styles.headText]}>Day</Text>
-                            <Text style={[styles.cell, styles.timeCol, styles.headText]}>Start</Text>
-                            <Text style={[styles.cell, styles.timeCol, styles.headText]}>End</Text>
-                            <Text style={[styles.cell, styles.subjectCol, styles.headText]}>Subject</Text>
-                            <Text style={[styles.cell, styles.codeCol, styles.headText]}>Code</Text>
+                            <Text style={[styles.cell, { flex: 0.3 }, styles.headText]}>Time Slot</Text>
+                            <Text style={[styles.cell, { flex: 0.5 }, styles.headText]}>Task Name</Text>
+                            <Text style={[styles.cell, { flex: 0.2 }, styles.headText, { textAlign: 'center' }]}>Est. Min</Text>
                         </View>
 
                         {rows.map((item, index) => (
-                            <View key={`${item.day}-${item.subject}-${index}`} style={[styles.row, index % 2 === 0 ? styles.evenRow : styles.oddRow]}>
-                                <Text style={[styles.cell, styles.dayCol]} numberOfLines={1}>{item.day}</Text>
-                                <Text style={[styles.cell, styles.timeCol]} numberOfLines={1}>{item.start_time || '-'}</Text>
-                                <Text style={[styles.cell, styles.timeCol]} numberOfLines={1}>{item.end_time || '-'}</Text>
-                                <Text style={[styles.cell, styles.subjectCol]} numberOfLines={2}>{item.subject || '-'}</Text>
-                                <Text style={[styles.cell, styles.codeCol]} numberOfLines={1}>{item.code || '-'}</Text>
+                            <View key={`row-${index}`} style={[styles.row, index % 2 === 0 ? styles.evenRow : styles.oddRow]}>
+                                <Text style={[styles.cell, { flex: 0.3 }]} numberOfLines={2}>{item.time_slot || '-'}</Text>
+                                <Text style={[styles.cell, { flex: 0.5 }]} numberOfLines={3}>{item.task_name || '-'}</Text>
+                                <Text style={[styles.cell, { flex: 0.2 }, { textAlign: 'center' }]} numberOfLines={1}>
+                                    {item.estimated_minutes ? `${item.estimated_minutes}m` : '-'}
+                                </Text>
                             </View>
                         ))}
                     </View>

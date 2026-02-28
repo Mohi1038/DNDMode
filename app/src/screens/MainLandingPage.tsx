@@ -37,6 +37,7 @@ export default function MainLandingPage() {
     const [focusDuration, setFocusDuration] = useState(25);
     const [isFocusing, setIsFocusing] = useState(false);
     const [isLuminous, setIsLuminous] = useState(true);
+    const [isGeneratingTimetable, setIsGeneratingTimetable] = useState(false);
 
     // Group State
     const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
@@ -310,6 +311,50 @@ export default function MainLandingPage() {
         }
     };
 
+    const handleGenerateTimetable = async () => {
+        setIsGeneratingTimetable(true);
+        try {
+            const baseCandidates = [API_CONFIG.BASE_URL, ...getApiBaseCandidates()]
+                .filter((url, index, arr) => arr.indexOf(url) === index);
+
+            let handled = false;
+            let lastNetworkError: unknown = null;
+
+            for (const baseUrl of baseCandidates) {
+                try {
+                    const response = await fetch(`${baseUrl}/api/v1/timetable/generate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(finalJson)
+                    });
+
+                    const json = await response.json();
+                    if (response.ok && json.status === "success" && json.timetable) {
+                        setOcrData({ timetable: json.timetable });
+                        triggerHaptic('medium');
+                        setShowSuggestedTimetable(true);
+                    } else {
+                        Alert.alert('Generation Failed', json.message || 'Error generating timetable.');
+                    }
+                    handled = true;
+                    break;
+                } catch (error) {
+                    lastNetworkError = error;
+                }
+            }
+
+            if (!handled) {
+                console.error('Timetable generation failed on all API base candidates:', lastNetworkError);
+                Alert.alert('Network Error', 'Backend is unreachable. Please try again.');
+            }
+        } catch (error) {
+            console.error(error);
+            Alert.alert('System Error', 'An unexpected error occurred.');
+        } finally {
+            setIsGeneratingTimetable(false);
+        }
+    };
+
     const handleLogout = () => {
         triggerHaptic('medium');
         setShowSettings(false);
@@ -345,11 +390,25 @@ export default function MainLandingPage() {
         focus_style: (answers.q2_decision ?? 0) === 1 ? 'deep_work_mornings' : 'flexible_execution',
     });
 
-    const timetable = Array.isArray(ocrData?.timetable)
-        ? ocrData.timetable
-        : Array.isArray(ocrData?.items)
-            ? ocrData.items
-            : [];
+    const getFlatTimetable = (data: any) => {
+        if (!data) return [];
+        if (Array.isArray(data?.timetable)) return data.timetable;
+        if (Array.isArray(data?.items)) return data.items;
+        if (typeof data === 'object' && !Array.isArray(data)) {
+            return Object.entries(data).flatMap(([day, entries]) => {
+                if (Array.isArray(entries)) {
+                    return entries.map((entry: any) => ({
+                        ...entry,
+                        day: entry.day || day
+                    }));
+                }
+                return [];
+            });
+        }
+        return [];
+    };
+
+    const timetable = getFlatTimetable(ocrData);
 
     const finalJson = {
         user_id: activeUserName,
@@ -531,11 +590,14 @@ export default function MainLandingPage() {
                             <View style={styles.cardHighlight} />
                             <Text style={styles.sectionTitle}>Suggested Timetable</Text>
                             <Text style={styles.sectionSubtitle}>View your suggested class schedule in a structured table screen.</Text>
-                            <TouchableOpacity activeOpacity={0.85} onPress={() => setShowSuggestedTimetable(true)}>
+                            <TouchableOpacity activeOpacity={0.85} onPress={handleGenerateTimetable}>
                                 <View style={styles.governanceEntryCard}>
                                     <View style={styles.entryGlow} />
                                     <Text style={styles.entryTitle}>OPEN TIMETABLE VIEW</Text>
-                                    <Text style={styles.entryDesc}>Day-wise table with start time, end time, subject and code.</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <Text style={[styles.entryDesc, { flex: 1, marginRight: 8 }]}>Day-wise table with start time, end time, subject and code.</Text>
+                                        {isGeneratingTimetable && <ActivityIndicator color="#8B5CF6" size="small" />}
+                                    </View>
                                     <Text style={styles.entryArrow}>OPEN →</Text>
                                 </View>
                             </TouchableOpacity>

@@ -12,6 +12,9 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class AppTimerModule(
     private val context: ReactApplicationContext
@@ -100,6 +103,25 @@ class AppTimerModule(
         } catch (e: Exception) {
             Log.e(TAG, "getAppTimers failed: ${e.message}", e)
             promise.reject("GET_TIMERS_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun updateRemainingTime(packageName: String, remainingSeconds: Int, promise: Promise) {
+        try {
+            // Use IO dispatcher to avoid blocking the JS / main thread
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    AppTimerManager.updateRemainingTime(context, packageName, remainingSeconds)
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    Log.e(TAG, "updateRemainingTime Coroutine failed: ${e.message}", e)
+                    promise.reject("UPDATE_TIME_ERROR", e.message, e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "updateRemainingTime failed: ${e.message}", e)
+            promise.reject("UPDATE_TIME_ERROR", e.message, e)
         }
     }
 

@@ -8,6 +8,8 @@ const sttRoutes = require("./routes/sttRoutes");
 const agentRoutes = require("./routes/agentRoutes");
 const audioRoutes = require("./routes/audioRoutes");
 const digitalWellbeingRoutes = require("./routes/digitalWellbeingRoutes");
+const assignmentRoutes = require("./routes/assignment.routes");
+const newTimetableRoutes = require("./routes/timetable.routes");
 
 const app = express();
 
@@ -22,6 +24,8 @@ app.use("/api/stt", sttRoutes);
 app.use("/api/agent", agentRoutes);
 app.use("/api/audio", audioRoutes);
 app.use("/api/digital-wellbeing", digitalWellbeingRoutes);
+app.use("/api/v1/assignments", assignmentRoutes);
+app.use("/api/v1/timetable", newTimetableRoutes);
 
 // Alias: /notifications/ingest → same as /api/notifications/ingest
 app.use("/notifications", notificationRoutes);

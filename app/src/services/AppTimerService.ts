@@ -45,6 +45,14 @@ export const removeAppTimer = (packageName: string): Promise<boolean> =>
     AppTimerModule.removeAppTimer(packageName);
 
 /**
+ * Update remaining time from WebSocket push event. 
+ * If remainingSeconds <= 0, the native module will block the app.
+ * If > 0, it unblocks the app.
+ */
+export const updateRemainingTime = (packageName: string, remainingSeconds: number): Promise<boolean> =>
+    AppTimerModule.updateRemainingTime(packageName, remainingSeconds);
+
+/**
  * Get all active timers with current usage, remaining time, and blocked status.
  */
 export const getAppTimers = (): Promise<AppTimerInfo[]> =>
