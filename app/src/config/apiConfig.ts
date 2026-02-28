@@ -9,7 +9,7 @@
 
 export const API_CONFIG = {
     // Current Local Development IP
-    BASE_URL: 'http://172.31.35.50:3000',
+    BASE_URL: 'http://172.31.44.35:5000',
 
     // Timeouts and other network settings can go here
     TIMEOUT: 10000,

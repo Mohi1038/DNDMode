@@ -2,11 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView,
     Animated, Modal, Platform, Alert, Easing, Vibration, ActivityIndicator,
-    TextInput, Image, FlatList, Share
+    TextInput, Image, FlatList, Share, NativeModules
 } from 'react-native';
 import { API_CONFIG } from '../config/apiConfig';
 import FocusModeScreen from './FocusModeScreen';
 import DigitalGovernanceScreen, { AppSchedule } from './DigitalGovernanceScreen';
+
+const { InstalledAppsModule } = NativeModules;
 
 const triggerHaptic = (type: 'light' | 'medium' | 'heavy') => {
     if (Platform.OS === 'ios') {
@@ -50,11 +52,16 @@ export default function GroupDashboardScreen({ groupId, userName, onExit }: Grou
 
     const fetchInstalledApps = async () => {
         try {
-            const { InstalledApps } = require('react-native-launcher-kit');
-            const apps = await InstalledApps.getSortedApps();
-            setInstalledApps(apps);
+            if (InstalledAppsModule) {
+                const apps = await InstalledAppsModule.getSortedApps();
+                setInstalledApps(apps);
+            } else {
+                console.warn('InstalledAppsModule native module not available');
+                setInstalledApps([]);
+            }
         } catch (e) {
-            console.error(e);
+            console.warn('Failed to get installed apps:', e);
+            setInstalledApps([]);
         }
     };
 
