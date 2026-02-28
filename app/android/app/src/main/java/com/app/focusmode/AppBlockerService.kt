@@ -5,6 +5,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import com.app.apptimer.AppTimerManager
 
 class AppBlockerService : AccessibilityService() {
 
@@ -34,24 +35,34 @@ class AppBlockerService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
-        if (!FocusModeManager.isActive) return
 
         val packageName = event.packageName?.toString() ?: return
 
-        // Don't block whitelisted apps or the blocking activity itself
-        if (FocusModeManager.isWhitelisted(packageName)) return
+        // Never block our own app
         if (packageName == "com.app") return
 
-        Log.d(TAG, "Blocking app: $packageName")
-        launchBlockingScreen()
+        // Check timer block FIRST (before whitelist, since users explicitly
+        // set timers — the whitelist is only for focus mode system apps)
+        val blockedByTimer = AppTimerManager.isBlockedByTimer(packageName)
+
+        // For focus mode: respect the whitelist
+        val blockedByFocus = FocusModeManager.isActive &&
+            !FocusModeManager.isWhitelisted(packageName)
+
+        if (!blockedByFocus && !blockedByTimer) return
+
+        val reason = if (blockedByTimer) "timer" else "focus"
+        Log.d(TAG, "Blocking app: $packageName (reason=$reason)")
+        launchBlockingScreen(reason)
     }
 
-    private fun launchBlockingScreen() {
+    private fun launchBlockingScreen(reason: String = "focus") {
         val intent = Intent(this, BlockingActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
             addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            putExtra("block_reason", reason)
         }
 
         try {

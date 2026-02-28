@@ -10,6 +10,10 @@
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
       android:name=".MainApplication"
@@ -67,6 +71,21 @@
               android:name="android.accessibilityservice"
               android:resource="@xml/accessibility_service_config" />
       </service>
+
+      <!-- App Timer Foreground Service -->
+      <service
+          android:name=".apptimer.AppTimerService"
+          android:foregroundServiceType="specialUse"
+          android:exported="false" />
+
+      <!-- Midnight Reset Receiver (AlarmManager + Boot) -->
+      <receiver
+          android:name=".apptimer.MidnightResetReceiver"
+          android:exported="false">
+          <intent-filter>
+              <action android:name="android.intent.action.BOOT_COMPLETED" />
+          </intent-filter>
+      </receiver>
 
     </application>
 </manifest>

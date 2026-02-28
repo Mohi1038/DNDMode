@@ -12,6 +12,7 @@ import com.app.focusmode.FocusModePackage
 import com.app.audio.AudioPlayerPackage
 import com.app.wellbeing.DigitalWellbeingPackage
 import com.app.installedapps.InstalledAppsPackage
+import com.app.apptimer.AppTimerPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -28,6 +29,7 @@ class MainApplication : Application(), ReactApplication {
           add(AudioPlayerPackage())
           add(DigitalWellbeingPackage())
           add(InstalledAppsPackage())
+          add(AppTimerPackage())
         },
     )
   }

@@ -5,6 +5,7 @@ import {
     TextInput, Image, FlatList, NativeModules
 } from 'react-native';
 import { triggerHaptic } from '../utils/haptics';
+import { setAppTimer, removeAppTimer, startTimerService, hasUsagePermission, openUsageAccessSettings } from '../services/AppTimerService';
 
 const { InstalledAppsModule } = NativeModules;
 
@@ -46,6 +47,7 @@ export default function DigitalGovernanceScreen({
     const [isLoadingApps, setIsLoadingApps] = useState(true);
     const [showExpansionModal, setShowExpansionModal] = useState(false);
     const [expansionSearch, setExpansionSearch] = useState('');
+    const [isSettingTimers, setIsSettingTimers] = useState(false);
 
     // Animations
     const entranceAnim = useRef(new Animated.Value(0)).current;
@@ -104,11 +106,11 @@ export default function DigitalGovernanceScreen({
 
             const initialSelection = formattedApps
                 .filter(app => {
-                const pkg = app.id.toLowerCase();
-                const name = app.name.toLowerCase();
-                const isSocial = socialKeywords.some(kw => pkg.includes(kw) || name.includes(kw));
-                const isGame = gameKeywords.some(kw => pkg.includes(kw) || name.includes(kw));
-                return isSocial || isGame;
+                    const pkg = app.id.toLowerCase();
+                    const name = app.name.toLowerCase();
+                    const isSocial = socialKeywords.some(kw => pkg.includes(kw) || name.includes(kw));
+                    const isGame = gameKeywords.some(kw => pkg.includes(kw) || name.includes(kw));
+                    return isSocial || isGame;
                 })
                 .map(app => ({ ...app, selected: true }));
 
@@ -196,7 +198,38 @@ export default function DigitalGovernanceScreen({
         return data;
     };
 
-    const handleConfirmConfiguration = () => {
+    const applyTimers = async (selected: AppSchedule[]) => {
+        try {
+            for (const app of selected) {
+                await setAppTimer(app.id, app.durationMins);
+            }
+
+            // Remove timers for unselected apps
+            const unselected = appCatalog.filter(app => !app.selected);
+            for (const app of unselected) {
+                try {
+                    await removeAppTimer(app.id);
+                } catch (_) {
+                    // Ignore if timer didn't exist
+                }
+            }
+
+            // Start the monitoring service
+            await startTimerService();
+        } catch (error) {
+            console.error('Failed to set app timers:', error);
+            setIsSettingTimers(false);
+            Alert.alert('Timer Error', 'Failed to configure app timers. Please try again.');
+            return;
+        }
+
+        setIsSettingTimers(false);
+        onConfirmSelection?.(selected);
+        onPropose?.(selected);
+        onBack();
+    };
+
+    const handleConfirmConfiguration = async () => {
         const selected: AppSchedule[] = appCatalog
             .filter(app => app.selected)
             .map(app => ({
@@ -210,9 +243,51 @@ export default function DigitalGovernanceScreen({
             return;
         }
         triggerHaptic('heavy');
-        onConfirmSelection?.(selected);
-        onPropose?.(selected);
-        onBack();
+        setIsSettingTimers(true);
+
+        // Check Usage Access permission first
+        try {
+            const hasPermission = await hasUsagePermission();
+            if (!hasPermission) {
+                Alert.alert(
+                    'Permission Required',
+                    'App Timer needs Usage Access permission to monitor app usage and enforce time limits.\n\nYou will be taken to Settings. Please find and enable this app.',
+                    [
+                        { text: 'Cancel', style: 'cancel', onPress: () => setIsSettingTimers(false) },
+                        {
+                            text: 'Open Settings',
+                            onPress: async () => {
+                                await openUsageAccessSettings();
+                                // Wait for user to come back and re-check
+                                const waitAndRetry = () => {
+                                    setTimeout(async () => {
+                                        const granted = await hasUsagePermission();
+                                        if (granted) {
+                                            // Permission granted, proceed
+                                            await applyTimers(selected);
+                                        } else {
+                                            setIsSettingTimers(false);
+                                            Alert.alert(
+                                                'Permission Not Granted',
+                                                'Usage Access was not enabled. Timers cannot be set without this permission.'
+                                            );
+                                        }
+                                    }, 3000);
+                                };
+                                waitAndRetry();
+                            },
+                        },
+                    ]
+                );
+                return;
+            }
+
+            await applyTimers(selected);
+        } catch (error) {
+            console.error('Permission check failed:', error);
+            setIsSettingTimers(false);
+            Alert.alert('Error', 'Failed to check permissions. Please try again.');
+        }
     };
 
     const translateY = entranceAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] });

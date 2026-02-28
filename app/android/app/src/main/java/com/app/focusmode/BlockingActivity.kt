@@ -9,8 +9,12 @@ import android.widget.TextView
 
 class BlockingActivity : Activity() {
 
+    private var blockReason: String = "focus"
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        blockReason = intent?.getStringExtra("block_reason") ?: "focus"
 
         // Make fullscreen and keep on top
         window.addFlags(
@@ -27,14 +31,16 @@ class BlockingActivity : Activity() {
             setPadding(60, 60, 60, 60)
         }
 
+        val isTimer = blockReason == "timer"
+
         val iconText = TextView(this).apply {
-            text = "🔒"
+            text = if (isTimer) "⏱" else "🔒"
             textSize = 64f
             gravity = Gravity.CENTER
         }
 
         val titleText = TextView(this).apply {
-            text = "Focus Mode is ON"
+            text = if (isTimer) "Time Limit Reached" else "Focus Mode is ON"
             textSize = 28f
             setTextColor(0xFFFFFFFF.toInt())
             gravity = Gravity.CENTER
@@ -42,7 +48,10 @@ class BlockingActivity : Activity() {
         }
 
         val subtitleText = TextView(this).apply {
-            text = "This app is currently blocked.\nStay focused on what matters."
+            text = if (isTimer)
+                "You've used up your daily limit for this app.\nIt will be available again tomorrow."
+            else
+                "This app is currently blocked.\nStay focused on what matters."
             textSize = 16f
             setTextColor(0xAAFFFFFF.toInt())
             gravity = Gravity.CENTER
@@ -68,6 +77,12 @@ class BlockingActivity : Activity() {
         setContentView(layout)
     }
 
+    override fun onNewIntent(intent: android.content.Intent?) {
+        super.onNewIntent(intent)
+        // Update reason if re-launched with a new intent
+        blockReason = intent?.getStringExtra("block_reason") ?: blockReason
+    }
+
     private fun goHome() {
         val intent = packageManager.getLaunchIntentForPackage("com.app")
         if (intent != null) {
@@ -77,9 +92,14 @@ class BlockingActivity : Activity() {
         finish()
     }
 
+    @Suppress("DEPRECATION")
     override fun onBackPressed() {
         // Block back button — go home instead
-        if (FocusModeManager.isActive) {
+        val isStillBlocked = FocusModeManager.isActive ||
+            com.app.apptimer.AppTimerManager.isBlockedByTimer(
+                intent?.getStringExtra("blocked_package") ?: ""
+            )
+        if (isStillBlocked) {
             goHome()
         } else {
             super.onBackPressed()
