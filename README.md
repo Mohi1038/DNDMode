@@ -452,5 +452,5 @@ DNDMode/
 ---
 
 <p align="center">
-  Built with ☕ and Gemini by the <strong>ChronoForge</strong> team.
+  Built with ☕ by the <strong>ChronoForge</strong> team.
 </p>
