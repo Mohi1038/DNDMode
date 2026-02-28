@@ -10,6 +10,7 @@ import {
     Platform,
     Alert,
     ScrollView,
+    Image,
 } from 'react-native';
 import { useOnboardingStore } from '../store/useOnboardingStore';
 import { API_CONFIG } from '../config/apiConfig';
@@ -68,6 +69,11 @@ const SignUpScreen = ({ onBackToLogin }: SignUpScreenProps) => {
                 <ScrollView contentContainerStyle={styles.scrollContainer}>
                     <View style={styles.container}>
                         <View style={styles.header}>
+                            <Image
+                                source={require('../assets/logo2.png')}
+                                style={styles.brandLogo}
+                                resizeMode="contain"
+                            />
                             <Text style={styles.title}>Create Account</Text>
                             <Text style={styles.subtitle}>Join ChronoForge to establish deep focus</Text>
                         </View>
@@ -148,10 +154,11 @@ const SignUpScreen = ({ onBackToLogin }: SignUpScreenProps) => {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: '#F4F6F8',
+        backgroundColor: '#202730',
     },
     keyboardAvoiding: {
         flex: 1,
+        backgroundColor: '#1A2028',
     },
     scrollContainer: {
         flexGrow: 1,
@@ -163,18 +170,23 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     header: {
-        marginBottom: 30,
+        marginBottom: 24,
         alignItems: 'center',
+    },
+    brandLogo: {
+        width: 160,
+        height: 160,
+        marginBottom: 12,
     },
     title: {
         fontSize: 32,
         fontWeight: '800',
-        color: '#111827',
+        color: '#E6ECF3',
         marginBottom: 8,
     },
     subtitle: {
         fontSize: 16,
-        color: '#4B5563',
+        color: '#AAB6C4',
         textAlign: 'center',
     },
     form: {
@@ -186,20 +198,20 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#374151',
+        color: '#C5CFDB',
         marginBottom: 8,
     },
     input: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#2A323C',
         borderWidth: 1,
-        borderColor: '#D1D5DB',
+        borderColor: '#465463',
         borderRadius: 12,
         padding: 16,
         fontSize: 16,
-        color: '#111827',
+        color: '#E8EEF6',
     },
     signupButton: {
-        backgroundColor: '#111827',
+        backgroundColor: '#5E6D80',
         borderRadius: 12,
         paddingVertical: 16,
         alignItems: 'center',
@@ -220,11 +232,11 @@ const styles = StyleSheet.create({
         marginTop: 20,
     },
     footerText: {
-        color: '#4B5563',
+        color: '#9EABBB',
         fontSize: 14,
     },
     loginText: {
-        color: '#2563EB',
+        color: '#C3CEDB',
         fontSize: 14,
         fontWeight: '600',
     },

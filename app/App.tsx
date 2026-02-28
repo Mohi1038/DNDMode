@@ -4,12 +4,14 @@ import LoginScreen from './src/screens/LoginScreen';
 import SignUpScreen from './src/screens/SignUpScreen';
 import ProfilingFlow from './src/screens/ProfilingFlow';
 import MainLandingPage from './src/screens/MainLandingPage';
+import SplashScreen from './src/screens/SplashScreen';
 import { useOnboardingStore } from './src/store/useOnboardingStore';
 import { speechService } from './src/services/speechService';
 
 function App() {
   const { tempJwt, isOnboarded, setPendingJoinCode } = useOnboardingStore();
   const [isSignUp, setIsSignUp] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
 
   const parseJoinCodeFromUrl = (url: string) => {
     try {
@@ -29,6 +31,14 @@ function App() {
       return null;
     }
   };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setShowSplash(false);
+    }, 1500);
+
+    return () => clearTimeout(timeout);
+  }, []);
 
   useEffect(() => {
     const handleUrl = ({ url }: { url: string }) => {
@@ -66,6 +76,10 @@ function App() {
 
     return () => speechService.stopSTT();
   }, []);
+
+  if (showSplash) {
+    return <SplashScreen />;
+  }
 
   if (isOnboarded) {
     return <MainLandingPage />;

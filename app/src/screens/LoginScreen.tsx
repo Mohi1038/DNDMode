@@ -10,6 +10,7 @@ import {
     Platform,
     Alert,
     ActivityIndicator,
+    Image,
 } from 'react-native';
 import { useOnboardingStore } from '../store/useOnboardingStore';
 import { API_CONFIG, getApiBaseCandidates } from '../config/apiConfig';
@@ -96,6 +97,11 @@ const LoginScreen = ({ onSignUpPress }: LoginScreenProps) => {
             >
                 <View style={styles.container}>
                     <View style={styles.header}>
+                        <Image
+                            source={require('../assets/logo2.png')}
+                            style={styles.brandLogo}
+                            resizeMode="contain"
+                        />
                         <Text style={styles.title}>Welcome Back</Text>
                         <Text style={styles.subtitle}>Sign in to continue to ChronoForge</Text>
                     </View>
@@ -171,10 +177,11 @@ const LoginScreen = ({ onSignUpPress }: LoginScreenProps) => {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: '#F4F6F8',
+        backgroundColor: '#202730',
     },
     keyboardAvoiding: {
         flex: 1,
+        backgroundColor: '#1A2028',
     },
     container: {
         flex: 1,
@@ -182,18 +189,23 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     header: {
-        marginBottom: 40,
+        marginBottom: 28,
         alignItems: 'center',
+    },
+    brandLogo: {
+        width: 160,
+        height: 160,
+        marginBottom: 12,
     },
     title: {
         fontSize: 32,
         fontWeight: '800',
-        color: '#111827',
+        color: '#E6ECF3',
         marginBottom: 8,
     },
     subtitle: {
         fontSize: 16,
-        color: '#4B5563',
+        color: '#AAB6C4',
         textAlign: 'center',
     },
     form: {
@@ -205,29 +217,29 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#374151',
+        color: '#C5CFDB',
         marginBottom: 8,
     },
     input: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#2A323C',
         borderWidth: 1,
-        borderColor: '#D1D5DB',
+        borderColor: '#465463',
         borderRadius: 12,
         padding: 16,
         fontSize: 16,
-        color: '#111827',
+        color: '#E8EEF6',
     },
     forgotPassword: {
         alignSelf: 'flex-end',
         marginBottom: 24,
     },
     forgotPasswordText: {
-        color: '#2563EB',
+        color: '#B8C4D3',
         fontSize: 14,
         fontWeight: '600',
     },
     loginButton: {
-        backgroundColor: '#111827',
+        backgroundColor: '#5E6D80',
         borderRadius: 12,
         paddingVertical: 16,
         alignItems: 'center',
@@ -254,24 +266,24 @@ const styles = StyleSheet.create({
     divider: {
         flex: 1,
         height: 1,
-        backgroundColor: '#E5E7EB',
+        backgroundColor: '#4A5868',
     },
     dividerText: {
         marginHorizontal: 16,
-        color: '#6B7280',
+        color: '#8A97A8',
         fontSize: 14,
         fontWeight: '500',
     },
     googleButton: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#252D37',
         borderWidth: 1,
-        borderColor: '#D1D5DB',
+        borderColor: '#465463',
         borderRadius: 12,
         paddingVertical: 16,
         alignItems: 'center',
     },
     googleButtonText: {
-        color: '#374151',
+        color: '#D5DEE9',
         fontSize: 16,
         fontWeight: '600',
     },
@@ -281,11 +293,11 @@ const styles = StyleSheet.create({
         marginTop: 40,
     },
     footerText: {
-        color: '#4B5563',
+        color: '#9EABBB',
         fontSize: 14,
     },
     signupText: {
-        color: '#2563EB',
+        color: '#C3CEDB',
         fontSize: 14,
         fontWeight: '600',
     },

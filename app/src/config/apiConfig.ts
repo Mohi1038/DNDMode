@@ -8,14 +8,13 @@ import { Platform } from 'react-native';
  * iOS Simulator: localhost works directly.
  */
 
-// ⚡ Change this to your machine's current LAN IP (run `hostname -I` to find it)
 const LAN_IP = '172.31.44.35';
 
 export const API_CONFIG = {
     BASE_URL: Platform.select({
-        android: `http://${LAN_IP}:5000`,
-        ios: 'http://localhost:5000',
-        default: 'http://localhost:5000',
+        android: 'http://localhost:5001',
+        ios: 'http://localhost:5001',
+        default: 'http://localhost:5001',
     })!,
     TIMEOUT: 10000,
 };
@@ -23,11 +22,14 @@ export const API_CONFIG = {
 export const getApiBaseCandidates = (): string[] => {
     if (Platform.OS === 'android') {
         return [
+            'http://localhost:5001',
+            `http://${LAN_IP}:5001`,
+            'http://10.0.2.2:5001',
             `http://${LAN_IP}:5000`,
             'http://10.0.2.2:5000',
             'http://localhost:5000',
         ];
     }
 
-    return [API_CONFIG.BASE_URL, 'http://localhost:5000'];
+    return [API_CONFIG.BASE_URL, 'http://localhost:5001', 'http://localhost:5000'];
 };

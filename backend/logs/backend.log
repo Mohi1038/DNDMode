@@ -1,0 +1,307 @@
+[dotenv@17.3.1] injecting env (5) from .env -- tip: ⚡️ secrets for agents: https://dotenvx.com/as2
+
+🚀 Server running on port 5001
+   Timetable AI:  Gemini
+   Auth:          http://localhost:5001/api/auth
+   Onboarding:    http://localhost:5001/api/onboarding
+   Timetable:     http://localhost:5001/api/timetable
+   Governance:    http://localhost:5001/api/governance
+   Groups:        http://localhost:5001/api/groups
+   Notifications: http://localhost:5001/api/notifications
+   Ingest:        http://localhost:5001/api/notifications/ingest
+   STT:           http://localhost:5001/api/stt
+   Agent Query:   http://localhost:5001/api/agent/query
+   Audio:         http://localhost:5001/api/audio/:file
+   Wellbeing:     http://localhost:5001/api/digital-wellbeing/ingest
+   Join Link:     http://localhost:5001/join/:code
+   Groups WS:     ws://localhost:5001/ws/groups?groupId=<id>&userName=<name>
+
+   Waiting for data from Android device...
+
+[2026-02-28T09:54:04.902Z] POST /api/timetable/upload
+[2026-02-28T09:55:42.288Z] POST /api/timetable/upload
+MulterError: Unexpected field
+    at wrappedFileFilter (/Users/mohi1038/DNDMode/backend/node_modules/multer/index.js:41:19)
+    at Multipart.<anonymous> (/Users/mohi1038/DNDMode/backend/node_modules/multer/lib/make-middleware.js:155:7)
+    at Multipart.emit (node:events:508:20)
+    at Multipart.emit (node:domain:489:12)
+    at HeaderParser.cb (/Users/mohi1038/DNDMode/backend/node_modules/busboy/lib/types/multipart.js:358:14)
+    at HeaderParser.push (/Users/mohi1038/DNDMode/backend/node_modules/busboy/lib/types/multipart.js:162:20)
+    at SBMH.ssCb [as _cb] (/Users/mohi1038/DNDMode/backend/node_modules/busboy/lib/types/multipart.js:394:37)
+    at feed (/Users/mohi1038/DNDMode/backend/node_modules/streamsearch/lib/sbmh.js:219:14)
+    at SBMH.push (/Users/mohi1038/DNDMode/backend/node_modules/streamsearch/lib/sbmh.js:104:16)
+    at Multipart._write (/Users/mohi1038/DNDMode/backend/node_modules/busboy/lib/types/multipart.js:567:19)
+[2026-02-28T09:56:05.054Z] POST /api/timetable/upload
+Processing image with Gemini VLM...
+Gemini Extracted Text: {
+  "monday": [],
+  "tuesday": [],
+  "wednesday": [],
+  "thursday": [],
+  "friday": [],
+  "saturday": [],
+  "sunday": []
+}
+[dotenv@17.3.1] injecting env (5) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+
+🚀 Server running on port 5001
+   Timetable AI:  Gemini
+   Auth:          http://localhost:5001/api/auth
+   Onboarding:    http://localhost:5001/api/onboarding
+   Timetable:     http://localhost:5001/api/timetable
+   Governance:    http://localhost:5001/api/governance
+   Groups:        http://localhost:5001/api/groups
+   Notifications: http://localhost:5001/api/notifications
+   Ingest:        http://localhost:5001/api/notifications/ingest
+   STT:           http://localhost:5001/api/stt
+   Agent Query:   http://localhost:5001/api/agent/query
+   Audio:         http://localhost:5001/api/audio/:file
+   Wellbeing:     http://localhost:5001/api/digital-wellbeing/ingest
+   Join Link:     http://localhost:5001/join/:code
+   Groups WS:     ws://localhost:5001/ws/groups?groupId=<id>&userName=<name>
+
+   Waiting for data from Android device...
+
+[2026-02-28T10:11:08.270Z] POST /api/timetable/upload
+Processing image with Gemini VLM...
+Gemini Extracted Text: {
+  "monday": [],
+  "tuesday": [],
+  "wednesday": [],
+  "thursday": [],
+  "friday": [],
+  "saturday": [],
+  "sunday": []
+}
+[dotenv@17.3.1] injecting env (5) from .env -- tip: 🛡️ auth for agents: https://vestauth.com
+
+🚀 Server running on port 5001
+   Timetable AI:  Gemini
+   Auth:          http://localhost:5001/api/auth
+   Onboarding:    http://localhost:5001/api/onboarding
+   Timetable:     http://localhost:5001/api/timetable
+   Governance:    http://localhost:5001/api/governance
+   Groups:        http://localhost:5001/api/groups
+   Notifications: http://localhost:5001/api/notifications
+   Ingest:        http://localhost:5001/api/notifications/ingest
+   STT:           http://localhost:5001/api/stt
+   Agent Query:   http://localhost:5001/api/agent/query
+   Audio:         http://localhost:5001/api/audio/:file
+   Wellbeing:     http://localhost:5001/api/digital-wellbeing/ingest
+   Join Link:     http://localhost:5001/join/:code
+   Groups WS:     ws://localhost:5001/ws/groups?groupId=<id>&userName=<name>
+
+   Waiting for data from Android device...
+
+[2026-02-28T10:16:45.528Z] POST /api/auth/verify-initial
+[2026-02-28T10:17:25.725Z] POST /api/onboarding/complete
+--- ONBOARDING COMPLETION REQUEST ---
+{
+  "user_id": "uldluz",
+  "current_date": "2026-02-28",
+  "current_day": "Saturday",
+  "personality": {
+    "chronotype": "night_owl",
+    "energy_peaks": [
+      "14:00-18:00",
+      "22:00-02:00"
+    ],
+    "distraction_triggers": [
+      "whatsapp",
+      "youtube"
+    ],
+    "focus_style": "deep_work_mornings",
+    "answers": {
+      "q1_attention": 2,
+      "q2_decision": 1,
+      "q3_emotion": 1,
+      "q4_social": 1,
+      "q5_discipline": 1
+    }
+  },
+  "timetable": [],
+  "long_term_goals": [
+    {
+      "title": "Xykzyllux",
+      "priority": 1,
+      "category": "Personal",
+      "deadline": "2026-05-20",
+      "id": "lt1"
+    }
+  ],
+  "short_term_goals": [
+    {
+      "title": "Tsitsztk",
+      "priority": 1,
+      "category": "Personal",
+      "deadline": "2026-02-02",
+      "id": "st1"
+    }
+  ],
+  "misc_commitments": [],
+  "today_deadlines": []
+}
+[2026-02-28T10:17:37.800Z] POST /api/timetable/upload
+Processing image with Gemini VLM...
+Gemini Extracted Text: {
+  "monday": [
+    {
+      "start_time": "10:00",
+      "end_time": "10:50",
+      "subject": "Computer Networks",
+      "code": "",
+      "is_attendance_critical": false
+    },
+    {
+      "start_time": "11:00",
+      "end_time": "11:50",
+      "subject": "Embedded Systems",
+      "code": "",
+      "is_attendance_critical": false
+    },
+    {
+      "start_time": "14:00",
+      "end_time": "14:50",
+      "subject": "CyberSec",
+      "code": "",
+      "is_attendance_critical": false
+    },
+    {
+      "start_time": "15:00",
+      "end_time": "15:50",
+      "subject": "Computer Graphics",
+      "code": "",
+      "is_attendance_critical": false
+    }
+  ],
+  "tuesday": [
+    {
+      "start_time": "08:00",
+      "end_time": "08:50",
+      "subject": "Blockchain",
+      "code": "",
+      "is_attendance_critical": false
+    },
+    {
+      "start_time": "14:00",
+      "end_time": "14:50",
+      "subject": "CyberSec",
+      "code": "",
+      "is_attendance_critical": false
+    },
+    {
+      "start_time": "17:00",
+      "end_time": "17:50",
+      "subject": "Professional Ethics - II (UG)",
+      "code": "",
+      "is_attendance_critical": false
+    }
+  ],
+  "wednesday": [
+    {
+      "start_time": "10:00",
+      "end_time": "10:50",
+      "subject": "Computer Networks",
+      "code": "",
+      "is_attendance_critical": false
+    },
+    {
+      "start_time": "11:00",
+      "end_time": "11:50",
+      "subject": "Embedded Systems",
+      "code": "",
+      "is_attendance_critical": false
+    },
+    {
+      "start_time": "15:00",
+      "end_time": "15:50",
+      "subject": "Computer Graphics",
+      "code": "",
+      "is_attendance_critical": false
+    },
+    {
+      "start_time": "17:00",
+      "end_time": "17:50",
+      "subject": "Professional Ethics - II (UG)",
+      "code": "",
+      "is_attendance_critical": false
+    },
+    {
+      "start_time": "18:00",
+      "end_time": "18:50",
+      "subject": "Cloud(VCC)",
+      "code": "",
+      "is_attendance_critical": false
+    }
+  ],
+  "thursday": [
+    {
+      "start_time": "08:00",
+      "end_time": "08:50",
+      "subject": "Blockchain",
+      "code": "",
+      "is_attendance_critical": false
+    },
+    {
+      "start_time": "10:00",
+      "end_time": "10:50",
+      "subject": "Computer Networks",
+      "code": "",
+      "is_attendance_critical": false
+    },
+    {
+      "start_time": "14:00",
+      "end_time": "14:50",
+      "subject": "CyberSec",
+      "code": "",
+      "is_attendance_critical": false
+    },
+    {
+      "start_time": "15:00",
+      "end_time": "15:50",
+      "subject": "Computer Graphics",
+      "code": "",
+      "is_attendance_critical": false
+    },
+    {
+      "start_time": "17:00",
+      "end_time": "17:50",
+      "subject": "Professional Ethics - II (UG)",
+      "code": "",
+      "is_attendance_critical": false
+    }
+  ],
+  "friday": [
+    {
+      "start_time": "11:00",
+      "end_time": "11:50",
+      "subject": "Embedded Systems",
+      "code": "",
+      "is_attendance_critical": false
+    },
+    {
+      "start_time": "17:00",
+      "end_time": "17:50",
+      "subject": "Blockchain",
+      "code": "",
+      "is_attendance_critical": false
+    }
+  ],
+  "saturday": [
+    {
+      "start_time": "16:00",
+      "end_time": "16:50",
+      "subject": "Cloud(VCC)",
+      "code": "",
+      "is_attendance_critical": false
+    },
+    {
+      "start_time": "17:00",
+      "end_time": "17:50",
+      "subject": "Professional Ethics - II (UG)",
+      "code": "",
+      "is_attendance_critical": false
+    }
+  ],
+  "sunday": []
+}

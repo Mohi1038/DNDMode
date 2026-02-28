@@ -260,7 +260,7 @@ export default function MainLandingPage() {
                 name: asset.fileName || 'timetable.jpg',
             } as any);
 
-            const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs = 25000) => {
+            const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs = 70000) => {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
                 try {
@@ -281,7 +281,7 @@ export default function MainLandingPage() {
                     const response = await fetchWithTimeout(`${baseUrl}/api/timetable/upload`, {
                         method: 'POST',
                         body: formData,
-                    }, 25000);
+                    }, 70000);
 
                     const json = await response.json();
                     if (response.ok) {

@@ -13,6 +13,7 @@ export const uploadTimetable = async (req: Request, res: Response) => {
         }
 
         const genAI = new GoogleGenerativeAI(apiKey);
+        const timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS || 60000);
 
         console.log('Processing image with Gemini VLM...');
 
@@ -53,7 +54,7 @@ export const uploadTimetable = async (req: Request, res: Response) => {
         const result = await Promise.race([
             model.generateContent([prompt, ...imageParts]),
             new Promise<never>((_, reject) => {
-                setTimeout(() => reject(new Error('Gemini request timed out after 20 seconds.')), 20000);
+                setTimeout(() => reject(new Error(`Gemini request timed out after ${Math.round(timeoutMs / 1000)} seconds.`)), timeoutMs);
             }),
         ]);
         const responseText = result.response.text();
