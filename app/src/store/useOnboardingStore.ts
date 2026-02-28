@@ -22,6 +22,7 @@ interface OnboardingState {
     isOnboarded: boolean;
     onboardingArchetype: string | null;
     showOnboardingSuccessToast: boolean;
+    pendingJoinCode: string | null;
 
     // Actions
     setTempAuth: (token: string, email: string) => void;
@@ -32,6 +33,7 @@ interface OnboardingState {
     setOnboarded: (status: boolean) => void;
     completeOnboarding: (archetype: string) => void;
     clearOnboardingToast: () => void;
+    setPendingJoinCode: (code: string | null) => void;
     clearState: () => void;
 }
 
@@ -43,6 +45,7 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
     isOnboarded: false,
     onboardingArchetype: null,
     showOnboardingSuccessToast: false,
+    pendingJoinCode: null,
     answers: {
         q1_attention: null,
         q2_decision: null,
@@ -97,6 +100,9 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
     clearOnboardingToast: () =>
         set(() => ({ showOnboardingSuccessToast: false })),
 
+    setPendingJoinCode: (code: string | null) =>
+        set(() => ({ pendingJoinCode: code })),
+
     clearState: () =>
         set(() => ({
             tempJwt: null,
@@ -106,6 +112,7 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
             isOnboarded: false,
             onboardingArchetype: null,
             showOnboardingSuccessToast: false,
+            pendingJoinCode: null,
             answers: {
                 q1_attention: null,
                 q2_decision: null,

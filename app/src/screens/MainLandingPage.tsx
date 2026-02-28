@@ -66,6 +66,8 @@ export default function MainLandingPage() {
         onboardingArchetype,
         showOnboardingSuccessToast,
         clearOnboardingToast,
+        pendingJoinCode,
+        setPendingJoinCode,
     } = useOnboardingStore();
     const activeUserName = userEmail ? userEmail.split('@')[0] : 'NEURAL_UNIT';
 
@@ -162,12 +164,21 @@ export default function MainLandingPage() {
 
     const handleJoinGroup = async () => {
         if (!groupCodeInput.trim()) return;
+        const normalizedCode = (() => {
+            const raw = groupCodeInput.trim();
+            if (raw.includes('/join/')) {
+                const afterJoin = raw.split('/join/')[1] || '';
+                return afterJoin.split(/[?#]/)[0].trim().toUpperCase();
+            }
+            return raw.toUpperCase();
+        })();
+
         setIsGroupLoading(true);
         try {
             const response = await fetch(`${API_CONFIG.BASE_URL}/api/groups/join`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: groupCodeInput, userName: activeUserName })
+                body: JSON.stringify({ code: normalizedCode, userName: activeUserName })
             });
             const data = await response.json();
             if (response.ok) {
@@ -197,6 +208,16 @@ export default function MainLandingPage() {
             ocrFadeAnim.setValue(0);
         }
     }, [showOcrResult]);
+
+    useEffect(() => {
+        if (!pendingJoinCode) {
+            return;
+        }
+
+        setGroupCodeInput(pendingJoinCode);
+        setShowGroupJoin(true);
+        setPendingJoinCode(null);
+    }, [pendingJoinCode, setPendingJoinCode]);
 
     const handleStartFocus = () => {
         triggerHaptic('heavy');

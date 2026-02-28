@@ -34,11 +34,15 @@ export default function DigitalGovernanceScreen({
     onConfirmSelection,
     onPropose,
     isSyncing = false,
+    maxTotalMins,
+    initialSchedules = [],
 }: {
     onBack: () => void;
     onConfirmSelection?: (apps: AppSchedule[]) => void;
     onPropose?: (apps: AppSchedule[]) => void;
     isSyncing?: boolean;
+    maxTotalMins?: number;
+    initialSchedules?: AppSchedule[];
 }) {
     const [appCatalog, setAppCatalog] = useState<AppSelection[]>([]);
     const [filteredApps, setFilteredApps] = useState<AppSelection[]>([]);
@@ -123,11 +127,25 @@ export default function DigitalGovernanceScreen({
         }
     };
 
+    const selectedTotalMins = appCatalog
+        .filter(app => app.selected)
+        .reduce((sum, app) => sum + (app.durationMins || 15), 0);
+
+    const remainingMins = maxTotalMins !== undefined
+        ? Math.max(0, maxTotalMins - selectedTotalMins)
+        : null;
+
     const addAppToGovernance = (app: AppSelection) => {
         if (appCatalog.some(a => a.id === app.id)) {
             Alert.alert('System Alert', 'This interface is already listed.');
             return;
         }
+
+        if (maxTotalMins !== undefined && (selectedTotalMins + 15) > maxTotalMins) {
+            Alert.alert('Limit Reached', `You cannot exceed your total mobile time (${maxTotalMins}m).`);
+            return;
+        }
+
         const updated = [...appCatalog, { ...app, selected: true }];
         setAppCatalog(updated);
         setFilteredApps(updated);
@@ -143,6 +161,15 @@ export default function DigitalGovernanceScreen({
             }
 
             const willSelect = !app.selected;
+            if (willSelect && maxTotalMins !== undefined) {
+                const currentTotal = prev.filter(a => a.selected).reduce((sum, a) => sum + (a.durationMins || 15), 0);
+                const currentAppDuration = app.durationMins || 15;
+                if ((currentTotal + currentAppDuration) > maxTotalMins) {
+                    Alert.alert('Limit Reached', `Total app time cannot exceed ${maxTotalMins}m.`);
+                    return app;
+                }
+            }
+
             return {
                 ...app,
                 selected: willSelect,
@@ -153,9 +180,21 @@ export default function DigitalGovernanceScreen({
 
     const setAppDuration = (id: string, durationMins: number) => {
         triggerHaptic('light');
-        setAppCatalog(prev => prev.map(app => (
-            app.id === id ? { ...app, durationMins } : app
-        )));
+        setAppCatalog(prev => {
+            const currentTotal = prev.filter(app => app.selected).reduce((sum, app) => sum + (app.durationMins || 15), 0);
+            const currentApp = prev.find(app => app.id === id);
+            const currentDuration = currentApp?.durationMins || 15;
+            const nextTotal = currentTotal - currentDuration + durationMins;
+
+            if (maxTotalMins !== undefined && nextTotal > maxTotalMins) {
+                Alert.alert('Limit Reached', `Total app time cannot exceed ${maxTotalMins}m.`);
+                return prev;
+            }
+
+            return prev.map(app => (
+                app.id === id ? { ...app, durationMins } : app
+            ));
+        });
     };
 
     useEffect(() => {
@@ -242,6 +281,15 @@ export default function DigitalGovernanceScreen({
             Alert.alert('No apps selected', 'Select at least one app to align with focus timer.');
             return;
         }
+
+        if (maxTotalMins !== undefined) {
+            const allocated = selected.reduce((sum, app) => sum + app.durationMins, 0);
+            if (allocated > maxTotalMins) {
+                Alert.alert('Allocation Error', `Selected app time (${allocated}m) exceeds ${maxTotalMins}m total.`);
+                return;
+            }
+        }
+
         triggerHaptic('heavy');
         setIsSettingTimers(true);
 
@@ -305,6 +353,14 @@ export default function DigitalGovernanceScreen({
                 </View>
 
                 <Animated.View style={[styles.content, { opacity, transform: [{ translateY }] }]}>
+                    {maxTotalMins !== undefined && (
+                        <View style={styles.budgetCard}>
+                            <Text style={styles.budgetTitle}>TOTAL MOBILE TIME</Text>
+                            <Text style={styles.budgetValue}>{selectedTotalMins}/{maxTotalMins}m</Text>
+                            <Text style={styles.budgetHint}>Remaining: {remainingMins}m</Text>
+                        </View>
+                    )}
+
                     {/* Search Bar */}
                     <View style={styles.searchContainer}>
                         <View style={styles.searchIconBox}>
@@ -340,11 +396,13 @@ export default function DigitalGovernanceScreen({
                                     );
                                 }
                                 const app = item;
+                                const disableNewSelect = maxTotalMins !== undefined && !app.selected && (remainingMins !== null && remainingMins <= 0);
                                 return (
                                     <TouchableOpacity
                                         activeOpacity={0.85}
-                                        style={[styles.appRow, app.selected && styles.appRowSelected]}
+                                        style={[styles.appRow, app.selected && styles.appRowSelected, disableNewSelect && styles.appRowDisabled]}
                                         onPress={() => toggleAppSelection(app.id)}
+                                        disabled={disableNewSelect}
                                     >
                                         <View style={styles.rowTop}>
                                             <View style={styles.appInfo}>
@@ -370,13 +428,14 @@ export default function DigitalGovernanceScreen({
                                             <View style={styles.timerContainer}>
                                                 <Text style={styles.timerLabel}>Focus timer for this app</Text>
                                                 <View style={styles.timerPillsRow}>
-                                                    {[15, 30, 60, 240].map((mins) => {
+                                                    {[15, 20, 30, 40, 60, 120, 240].map((mins) => {
                                                         const active = (app.durationMins || 15) === mins;
                                                         return (
                                                             <TouchableOpacity
                                                                 key={`${app.id}-${mins}`}
                                                                 activeOpacity={0.85}
                                                                 style={[styles.timerPill, active && styles.timerPillActive]}
+                                                                disabled={maxTotalMins !== undefined && !active && ((selectedTotalMins - (app.durationMins || 15) + mins) > maxTotalMins)}
                                                                 onPress={() => setAppDuration(app.id, mins)}
                                                             >
                                                                 <Text style={[styles.timerPillText, active && styles.timerPillTextActive]}>
@@ -479,6 +538,10 @@ const styles = StyleSheet.create({
     searchIconBox: { marginRight: 12 },
     searchIcon: { fontSize: 16 },
     searchInput: { flex: 1, color: '#F8FAFC', fontSize: 14, fontWeight: '600', fontFamily: FONT_FAMILY_MEDIUM },
+    budgetCard: { backgroundColor: '#141C26', borderWidth: 1, borderColor: '#334155', borderRadius: 14, padding: 12, marginBottom: 14 },
+    budgetTitle: { color: '#94A3B8', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+    budgetValue: { color: '#22D3EE', fontSize: 18, fontWeight: '900', marginTop: 4 },
+    budgetHint: { color: '#CBD5E1', fontSize: 11, marginTop: 2 },
     loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     loaderText: { color: '#94A3B8', marginTop: 16, fontWeight: '700', letterSpacing: 1, fontFamily: FONT_FAMILY_MEDIUM },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 24, marginBottom: 16, gap: 12 },
@@ -486,6 +549,7 @@ const styles = StyleSheet.create({
     sectionHeaderText: { fontSize: 13, fontWeight: '900', letterSpacing: 1.5, fontFamily: FONT_FAMILY_BOLD },
     appRow: { backgroundColor: '#171E28', borderRadius: 18, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.28, shadowRadius: 18, elevation: 8 },
     appRowSelected: { borderColor: '#22D3EE', backgroundColor: '#13242B' },
+    appRowDisabled: { opacity: 0.45 },
     rowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     appInfo: { flexDirection: 'row', alignItems: 'center', gap: 16, flex: 1 },
     appIconContainer: { width: 46, height: 46, borderRadius: 12, backgroundColor: '#101826', borderWidth: 1.2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
