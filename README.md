@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">🔕 DND Mode — ChronoForge</h1>
+  <h1 align="center">🔕 ChronoForge</h1>
   <p align="center">
     <strong>The AI Attention Operating System for College Students</strong>
   </p>
