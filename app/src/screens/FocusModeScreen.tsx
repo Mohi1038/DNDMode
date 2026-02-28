@@ -6,6 +6,7 @@ import {
 
 interface FocusModeScreenProps {
     durationMinutes: number;
+    participants?: string[];
     onEndFocus: () => void;
 }
 
@@ -19,7 +20,7 @@ const triggerHaptic = () => {
     }
 };
 
-export default function FocusModeScreen({ durationMinutes, onEndFocus }: FocusModeScreenProps) {
+export default function FocusModeScreen({ durationMinutes, participants = [], onEndFocus }: FocusModeScreenProps) {
     const [timeLeftRemaining, setTimeLeftRemaining] = useState(durationMinutes * 60);
     const [isListening, setIsListening] = useState(false);
 
@@ -193,6 +194,15 @@ export default function FocusModeScreen({ durationMinutes, onEndFocus }: FocusMo
                 <Text style={[styles.statusLabel, { color: statusColor, textShadowColor: statusColor }]}>
                     {timeLeftRemaining === 0 ? "SESSION COMPLETE" : "DEEP FOCUS ACTIVE"}
                 </Text>
+
+                {participants.length > 0 && (
+                    <View style={styles.syncContainer}>
+                        <View style={styles.syncPulse} />
+                        <Text style={styles.syncText}>
+                            SYNCHRONIZED WITH: {participants.join(', ').toUpperCase()}
+                        </Text>
+                    </View>
+                )}
             </View>
 
             {/* Control Dock (Frosted / Slate Metal feel) */}
@@ -449,5 +459,32 @@ const styles = StyleSheet.create({
         textShadowOffset: { width: 0, height: 0 },
         textShadowRadius: 10,
         opacity: 0.9,
+    },
+    syncContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 24,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        backgroundColor: 'rgba(34, 211, 238, 0.05)',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(34, 211, 238, 0.1)',
+    },
+    syncPulse: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#22D3EE',
+        marginRight: 10,
+        shadowColor: '#22D3EE',
+        shadowRadius: 6,
+        shadowOpacity: 0.8,
+    },
+    syncText: {
+        color: '#22D3EE',
+        fontSize: 11,
+        fontWeight: '800',
+        letterSpacing: 1,
     },
 });
