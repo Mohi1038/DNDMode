@@ -59,7 +59,7 @@ const ingestNotification = async (req, res) => {
         if (result.type === "audio") {
             // AI returned audio — save and return URL
             const filename = saveWavToTemp(result.buffer);
-            const host = req.headers.host || `localhost:${process.env.PORT || 5000}`;
+            const host = req.headers.host || `172.31.44.35:${process.env.PORT || 5000}`;
             const audioUrl = `http://${host}/api/audio/${filename}`;
 
             console.log(`   🔊 AI returned audio: ${result.buffer.length} bytes`);

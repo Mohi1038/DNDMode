@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView,
     Modal, Platform, Alert, Vibration, ActivityIndicator, TextInput,
-    Share, NativeModules
+    Share, NativeModules, AppState
 } from 'react-native';
 import { API_CONFIG } from '../config/apiConfig';
 import DigitalGovernanceScreen, { AppSchedule } from './DigitalGovernanceScreen';
@@ -33,6 +33,7 @@ export default function GroupDashboardScreen({ groupId, userName, onExit }: Grou
     const [showTotalTimeModal, setShowTotalTimeModal] = useState(false);
     const [totalTimeInput, setTotalTimeInput] = useState('');
     const wsRef = useRef<WebSocket | null>(null);
+    const appBackgroundAtRef = useRef<number | null>(null);
 
     const currentUserMember = Array.isArray(groupData?.members)
         ? groupData.members.find((m: any) => String(m?.name || '').toLowerCase() === String(userName || '').toLowerCase())
@@ -49,7 +50,7 @@ export default function GroupDashboardScreen({ groupId, userName, onExit }: Grou
                 const wsProtocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
                 return `${wsProtocol}//${parsed.host}/ws/groups?groupId=${encodeURIComponent(groupId)}&userName=${encodeURIComponent(userName)}`;
             } catch {
-                return `ws://localhost:5001/ws/groups?groupId=${encodeURIComponent(groupId)}&userName=${encodeURIComponent(userName)}`;
+                return `ws://172.31.44.35:5000/ws/groups?groupId=${encodeURIComponent(groupId)}&userName=${encodeURIComponent(userName)}`;
             }
         })();
 
@@ -143,6 +144,70 @@ export default function GroupDashboardScreen({ groupId, userName, onExit }: Grou
             setIsLoading(false);
         }
     };
+
+    const reportBackgroundUsage = async (usedMins: number) => {
+        if (!Number.isFinite(usedMins) || usedMins <= 0) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_CONFIG.BASE_URL}/api/groups/${groupId}/usage-event`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userName,
+                    appPackageName: 'outside.dndmode',
+                    usedMins,
+                }),
+            });
+
+            const data = await readApiBody(response);
+
+            if (response.ok) {
+                setGroupData(data?.group || data);
+                return;
+            }
+
+            if (response.status === 404) {
+                handleMissingGroup();
+                return;
+            }
+
+            console.warn('Failed to report background usage:', data?.error || response.status);
+        } catch (error) {
+            console.warn('Failed to report background usage:', error);
+        }
+    };
+
+    useEffect(() => {
+        const sub = AppState.addEventListener('change', (nextState) => {
+            if (nextState === 'background' || nextState === 'inactive') {
+                appBackgroundAtRef.current = Date.now();
+                return;
+            }
+
+            if (nextState !== 'active') {
+                return;
+            }
+
+            const leftAt = appBackgroundAtRef.current;
+            appBackgroundAtRef.current = null;
+
+            if (!leftAt) {
+                return;
+            }
+
+            const awayMs = Date.now() - leftAt;
+            if (awayMs < 60_000) {
+                return;
+            }
+
+            const usedMins = Math.floor(awayMs / 60_000);
+            reportBackgroundUsage(usedMins);
+        });
+
+        return () => sub.remove();
+    }, []);
 
     const handleShare = async () => {
         if (!groupData) return;

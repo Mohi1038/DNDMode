@@ -49,7 +49,7 @@ setGroupBroadcaster(broadcastGroupUpdate);
 const wss = new WebSocketServer({ server, path: '/ws/groups' });
 
 wss.on('connection', (socket, req) => {
-    const host = req.headers.host || `localhost:${PORT}`;
+    const host = req.headers.host || `172.31.44.35:${PORT}`;
     const url = new URL(req.url || '/ws/groups', `http://${host}`);
     const groupId = url.searchParams.get('groupId');
     const userName = url.searchParams.get('userName') || 'unknown';
@@ -162,18 +162,18 @@ app.use((req, res) => {
 server.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`\n🚀 Server running on port ${PORT}`);
     console.log(`   Timetable AI:  Gemini`);
-    console.log(`   Auth:          http://localhost:${PORT}/api/auth`);
-    console.log(`   Onboarding:    http://localhost:${PORT}/api/onboarding`);
-    console.log(`   Timetable:     http://localhost:${PORT}/api/timetable`);
-    console.log(`   Governance:    http://localhost:${PORT}/api/governance`);
-    console.log(`   Groups:        http://localhost:${PORT}/api/groups`);
-    console.log(`   Notifications: http://localhost:${PORT}/api/notifications`);
-    console.log(`   Ingest:        http://localhost:${PORT}/api/notifications/ingest`);
-    console.log(`   STT:           http://localhost:${PORT}/api/stt`);
-    console.log(`   Agent Query:   http://localhost:${PORT}/api/agent/query`);
-    console.log(`   Audio:         http://localhost:${PORT}/api/audio/:file`);
-    console.log(`   Wellbeing:     http://localhost:${PORT}/api/digital-wellbeing/ingest`);
-    console.log(`   Join Link:     http://localhost:${PORT}/join/:code`);
-    console.log(`   Groups WS:     ws://localhost:${PORT}/ws/groups?groupId=<id>&userName=<name>`);
+    console.log(`   Auth:          http://172.31.44.35:${PORT}/api/auth`);
+    console.log(`   Onboarding:    http://172.31.44.35:${PORT}/api/onboarding`);
+    console.log(`   Timetable:     http://172.31.44.35:${PORT}/api/timetable`);
+    console.log(`   Governance:    http://172.31.44.35:${PORT}/api/governance`);
+    console.log(`   Groups:        http://172.31.44.35:${PORT}/api/groups`);
+    console.log(`   Notifications: http://172.31.44.35:${PORT}/api/notifications`);
+    console.log(`   Ingest:        http://172.31.44.35:${PORT}/api/notifications/ingest`);
+    console.log(`   STT:           http://172.31.44.35:${PORT}/api/stt`);
+    console.log(`   Agent Query:   http://172.31.44.35:${PORT}/api/agent/query`);
+    console.log(`   Audio:         http://172.31.44.35:${PORT}/api/audio/:file`);
+    console.log(`   Wellbeing:     http://172.31.44.35:${PORT}/api/digital-wellbeing/ingest`);
+    console.log(`   Join Link:     http://172.31.44.35:${PORT}/join/:code`);
+    console.log(`   Groups WS:     ws://172.31.44.35:${PORT}/ws/groups?groupId=<id>&userName=<name>`);
     console.log(`\n   Waiting for data from Android device...\n`);
 });

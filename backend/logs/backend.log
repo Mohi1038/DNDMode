@@ -1,20 +1,20 @@
 [dotenv@17.3.1] injecting env (5) from .env -- tip: ⚡️ secrets for agents: https://dotenvx.com/as2
 
-🚀 Server running on port 5001
+🚀 Server running on port 5000
    Timetable AI:  Gemini
-   Auth:          http://localhost:5001/api/auth
-   Onboarding:    http://localhost:5001/api/onboarding
-   Timetable:     http://localhost:5001/api/timetable
-   Governance:    http://localhost:5001/api/governance
-   Groups:        http://localhost:5001/api/groups
-   Notifications: http://localhost:5001/api/notifications
-   Ingest:        http://localhost:5001/api/notifications/ingest
-   STT:           http://localhost:5001/api/stt
-   Agent Query:   http://localhost:5001/api/agent/query
-   Audio:         http://localhost:5001/api/audio/:file
-   Wellbeing:     http://localhost:5001/api/digital-wellbeing/ingest
-   Join Link:     http://localhost:5001/join/:code
-   Groups WS:     ws://localhost:5001/ws/groups?groupId=<id>&userName=<name>
+   Auth:          http://172.31.44.35:5000/api/auth
+   Onboarding:    http://172.31.44.35:5000/api/onboarding
+   Timetable:     http://172.31.44.35:5000/api/timetable
+   Governance:    http://172.31.44.35:5000/api/governance
+   Groups:        http://172.31.44.35:5000/api/groups
+   Notifications: http://172.31.44.35:5000/api/notifications
+   Ingest:        http://172.31.44.35:5000/api/notifications/ingest
+   STT:           http://172.31.44.35:5000/api/stt
+   Agent Query:   http://172.31.44.35:5000/api/agent/query
+   Audio:         http://172.31.44.35:5000/api/audio/:file
+   Wellbeing:     http://172.31.44.35:5000/api/digital-wellbeing/ingest
+   Join Link:     http://172.31.44.35:5000/join/:code
+   Groups WS:     ws://172.31.44.35:5000/ws/groups?groupId=<id>&userName=<name>
 
    Waiting for data from Android device...
 
@@ -44,21 +44,21 @@ Gemini Extracted Text: {
 }
 [dotenv@17.3.1] injecting env (5) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
 
-🚀 Server running on port 5001
+🚀 Server running on port 5000
    Timetable AI:  Gemini
-   Auth:          http://localhost:5001/api/auth
-   Onboarding:    http://localhost:5001/api/onboarding
-   Timetable:     http://localhost:5001/api/timetable
-   Governance:    http://localhost:5001/api/governance
-   Groups:        http://localhost:5001/api/groups
-   Notifications: http://localhost:5001/api/notifications
-   Ingest:        http://localhost:5001/api/notifications/ingest
-   STT:           http://localhost:5001/api/stt
-   Agent Query:   http://localhost:5001/api/agent/query
-   Audio:         http://localhost:5001/api/audio/:file
-   Wellbeing:     http://localhost:5001/api/digital-wellbeing/ingest
-   Join Link:     http://localhost:5001/join/:code
-   Groups WS:     ws://localhost:5001/ws/groups?groupId=<id>&userName=<name>
+   Auth:          http://172.31.44.35:5000/api/auth
+   Onboarding:    http://172.31.44.35:5000/api/onboarding
+   Timetable:     http://172.31.44.35:5000/api/timetable
+   Governance:    http://172.31.44.35:5000/api/governance
+   Groups:        http://172.31.44.35:5000/api/groups
+   Notifications: http://172.31.44.35:5000/api/notifications
+   Ingest:        http://172.31.44.35:5000/api/notifications/ingest
+   STT:           http://172.31.44.35:5000/api/stt
+   Agent Query:   http://172.31.44.35:5000/api/agent/query
+   Audio:         http://172.31.44.35:5000/api/audio/:file
+   Wellbeing:     http://172.31.44.35:5000/api/digital-wellbeing/ingest
+   Join Link:     http://172.31.44.35:5000/join/:code
+   Groups WS:     ws://172.31.44.35:5000/ws/groups?groupId=<id>&userName=<name>
 
    Waiting for data from Android device...
 
@@ -75,21 +75,21 @@ Gemini Extracted Text: {
 }
 [dotenv@17.3.1] injecting env (5) from .env -- tip: 🛡️ auth for agents: https://vestauth.com
 
-🚀 Server running on port 5001
+🚀 Server running on port 5000
    Timetable AI:  Gemini
-   Auth:          http://localhost:5001/api/auth
-   Onboarding:    http://localhost:5001/api/onboarding
-   Timetable:     http://localhost:5001/api/timetable
-   Governance:    http://localhost:5001/api/governance
-   Groups:        http://localhost:5001/api/groups
-   Notifications: http://localhost:5001/api/notifications
-   Ingest:        http://localhost:5001/api/notifications/ingest
-   STT:           http://localhost:5001/api/stt
-   Agent Query:   http://localhost:5001/api/agent/query
-   Audio:         http://localhost:5001/api/audio/:file
-   Wellbeing:     http://localhost:5001/api/digital-wellbeing/ingest
-   Join Link:     http://localhost:5001/join/:code
-   Groups WS:     ws://localhost:5001/ws/groups?groupId=<id>&userName=<name>
+   Auth:          http://172.31.44.35:5000/api/auth
+   Onboarding:    http://172.31.44.35:5000/api/onboarding
+   Timetable:     http://172.31.44.35:5000/api/timetable
+   Governance:    http://172.31.44.35:5000/api/governance
+   Groups:        http://172.31.44.35:5000/api/groups
+   Notifications: http://172.31.44.35:5000/api/notifications
+   Ingest:        http://172.31.44.35:5000/api/notifications/ingest
+   STT:           http://172.31.44.35:5000/api/stt
+   Agent Query:   http://172.31.44.35:5000/api/agent/query
+   Audio:         http://172.31.44.35:5000/api/audio/:file
+   Wellbeing:     http://172.31.44.35:5000/api/digital-wellbeing/ingest
+   Join Link:     http://172.31.44.35:5000/join/:code
+   Groups WS:     ws://172.31.44.35:5000/ws/groups?groupId=<id>&userName=<name>
 
    Waiting for data from Android device...
 

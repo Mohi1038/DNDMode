@@ -83,7 +83,7 @@ const normalizeMemberAppsToTotal = (member: GroupMember) => {
 
 const buildInviteLink = (req: Request, code: string) => {
     const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'http';
-    const host = req.get('host') || `localhost:${process.env.PORT || 5000}`;
+    const host = req.get('host') || `172.31.44.35:${process.env.PORT || 5000}`;
     return `${protocol}://${host}/join/${code}`;
 };
 
