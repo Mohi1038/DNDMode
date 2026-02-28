@@ -22,6 +22,7 @@ import FocusModeScreen from './FocusModeScreen';
 import GroupDashboardScreen from './GroupDashboardScreen';
 import DigitalGovernanceScreen from './DigitalGovernanceScreen';
 import FinalJsonPreviewScreen from './FinalJsonPreviewScreen.tsx';
+import SuggestedTimetableScreen from './SuggestedTimetableScreen';
 import { triggerHaptic } from '../utils/haptics';
 
 const FONT_FAMILY_REGULAR = Platform.select({ ios: 'System', android: 'sans-serif', default: 'System' });
@@ -46,6 +47,7 @@ export default function MainLandingPage() {
     const [isGroupLoading, setIsGroupLoading] = useState(false);
     const [showGovernance, setShowGovernance] = useState(false);
     const [showFinalJson, setShowFinalJson] = useState(false);
+    const [showSuggestedTimetable, setShowSuggestedTimetable] = useState(false);
     const [configuredApps, setConfiguredApps] = useState<Array<{ id: string; name: string }>>([]);
 
     // Misc commitments
@@ -503,6 +505,20 @@ export default function MainLandingPage() {
                                 </View>
                             </TouchableOpacity>
                         </View>
+
+                        <View style={[styles.glassCard, styles.lastCard]}>
+                            <View style={styles.cardHighlight} />
+                            <Text style={styles.sectionTitle}>Suggested Timetable</Text>
+                            <Text style={styles.sectionSubtitle}>View your suggested class schedule in a structured table screen.</Text>
+                            <TouchableOpacity activeOpacity={0.85} onPress={() => setShowSuggestedTimetable(true)}>
+                                <View style={styles.governanceEntryCard}>
+                                    <View style={styles.entryGlow} />
+                                    <Text style={styles.entryTitle}>OPEN TIMETABLE VIEW</Text>
+                                    <Text style={styles.entryDesc}>Day-wise table with start time, end time, subject and code.</Text>
+                                    <Text style={styles.entryArrow}>OPEN →</Text>
+                                </View>
+                            </TouchableOpacity>
+                        </View>
                     </Animated.View>
                 </ScrollView>
             </SafeAreaView>
@@ -624,6 +640,13 @@ export default function MainLandingPage() {
 
             <Modal visible={showFinalJson} animationType="slide" presentationStyle="fullScreen">
                 <FinalJsonPreviewScreen finalJson={finalJson} onBack={() => setShowFinalJson(false)} />
+            </Modal>
+
+            <Modal visible={showSuggestedTimetable} animationType="slide" presentationStyle="fullScreen">
+                <SuggestedTimetableScreen
+                    timetableData={ocrData}
+                    onBack={() => setShowSuggestedTimetable(false)}
+                />
             </Modal>
         </View>
     );
