@@ -123,14 +123,14 @@ app.get('/api/test', (_req, res) => {
 });
 
 app.get('/join/:code', (req, res) => {
-        const group = findGroupByCode(req.params.code || '');
+    const group = findGroupByCode(req.params.code || '');
 
-        if (!group) {
-                return res.status(404).send('<h2>Group not found</h2><p>The invite code is invalid or expired.</p>');
-        }
+    if (!group) {
+        return res.status(404).send('<h2>Group not found</h2><p>The invite code is invalid or expired.</p>');
+    }
 
-        const deepLink = `dndmode://join/${group.code}`;
-        const html = `<!doctype html>
+    const deepLink = `dndmode://join/${group.code}`;
+    const html = `<!doctype html>
 <html>
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -153,7 +153,7 @@ app.get('/join/:code', (req, res) => {
     </body>
 </html>`;
 
-        return res.status(200).send(html);
+    return res.status(200).send(html);
 });
 
 // 404 handler

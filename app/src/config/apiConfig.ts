@@ -1,35 +1,38 @@
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 
-/**
- * ChronoForge Global API Configuration
- *
- * Physical device: use the machine's LAN IP so the phone can reach the server.
- * Android Emulator: 10.0.2.2 points to your computer's 172.31.44.35.
- * iOS Simulator: 172.31.44.35 works directly.
- */
+const readServerUrlFromEnv = (): string | undefined => {
+    const fromNative = NativeModules?.NotificationModule?.SERVER_URL;
+    const fromProcess = process?.env?.SERVER_URL;
+    const raw = fromNative || fromProcess;
 
-const LAN_IP = '172.31.44.35';
+    if (typeof raw !== 'string') {
+        return undefined;
+    }
+
+    const value = raw.trim().replace(/^['\"]|['\"]$/g, '').replace(/\/$/, '');
+    return value.length > 0 ? value : undefined;
+};
+
+const DEFAULT_BASE_URL = Platform.select({
+    android: 'http://10.0.2.2:5000',
+    ios: 'http://localhost:5000',
+    default: 'http://localhost:5000',
+})!;
+
+const RESOLVED_SERVER_URL = readServerUrlFromEnv() || DEFAULT_BASE_URL;
 
 export const API_CONFIG = {
-    BASE_URL: Platform.select({
-        android: 'http://172.31.44.35:5000',
-        ios: 'http://172.31.44.35:5000',
-        default: 'http://172.31.44.35:5000',
-    })!,
+    BASE_URL: RESOLVED_SERVER_URL,
     TIMEOUT: 10000,
 };
 
 export const getApiBaseCandidates = (): string[] => {
+    const candidates = [API_CONFIG.BASE_URL];
+
     if (Platform.OS === 'android') {
-        return [
-            'http://172.31.44.35:5000',
-            `http://${LAN_IP}:5000`,
-            'http://10.0.2.2:5000',
-            `http://${LAN_IP}:5000`,
-            'http://10.0.2.2:5000',
-            'http://172.31.44.35:5000',
-        ];
+        candidates.push('http://10.0.2.2:5000');
     }
 
-    return [API_CONFIG.BASE_URL, 'http://172.31.44.35:5000', 'http://172.31.44.35:5000'];
+    candidates.push('http://localhost:5000');
+    return Array.from(new Set(candidates));
 };

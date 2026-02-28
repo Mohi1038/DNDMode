@@ -8,7 +8,7 @@ import { API_CONFIG } from '../config/apiConfig';
 import DigitalGovernanceScreen, { AppSchedule } from './DigitalGovernanceScreen';
 import { updateRemainingTime } from '../services/AppTimerService';
 import { digitalWellbeingService } from '../services/digitalWellbeingService';
-import { AppState } from 'react-native';
+
 
 const { InstalledAppsModule } = NativeModules;
 
@@ -38,6 +38,7 @@ export default function GroupDashboardScreen({ groupId, userName, onExit }: Grou
     const wsRef = useRef<WebSocket | null>(null);
     const usageBaselineRef = useRef<{ [pkg: string]: number }>({});
     const groupDataRef = useRef<any>(null);
+    const appBackgroundAtRef = useRef<number | null>(null);
 
     const currentUserMember = Array.isArray(groupData?.members)
         ? groupData.members.find((m: any) => String(m?.name || '').toLowerCase() === String(userName || '').toLowerCase())
@@ -58,7 +59,7 @@ export default function GroupDashboardScreen({ groupId, userName, onExit }: Grou
                 const wsProtocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
                 return `${wsProtocol}//${parsed.host}/ws/groups?groupId=${encodeURIComponent(groupId)}&userName=${encodeURIComponent(userName)}`;
             } catch {
-                return `ws://172.31.44.35:5000/ws/groups?groupId=${encodeURIComponent(groupId)}&userName=${encodeURIComponent(userName)}`;
+                return `ws://localhost:5000/ws/groups?groupId=${encodeURIComponent(groupId)}&userName=${encodeURIComponent(userName)}`;
             }
         })();
 

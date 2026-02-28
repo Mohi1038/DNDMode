@@ -12,10 +12,10 @@ class MergeService {
     static async mergePayloads(frontendPayload) {
         try {
             // Step 1: Fetch data from SERVER_2
-            const server2Data = await Server2Service.fetchSyncAndBreakdown();
+            // const server2Data = await Server2Service.fetchSyncAndBreakdown();
 
             // Extract the 'data' array from the success response, or default to empty array
-            const assignments = server2Data?.data || [];
+            const assignments = [];
 
             // Step 2 & 3: Merge both JSONs
             // SERVER_3 requires 'id' and 'category' on goals, but frontend might only send 'title' and 'type'

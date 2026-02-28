@@ -18,10 +18,12 @@ class Server2Service {
         const url = `${baseUrl}/api/v1/sync-and-breakdown`;
 
         try {
-            const response = await axios.get(url);
+            console.log(`[Server2Service] Fetching from ${url}`);
+            const response = await axios.get(url, { timeout: 15000 });
+            console.log(`[Server2Service] Received response from SERVER_2. length:`, JSON.stringify(response.data)?.length);
             return response.data;
         } catch (error) {
-            console.error('[Server2Service] Error fetching sync and breakdown data:', error.message);
+            console.error(`[Server2Service] Error fetching sync and breakdown data from ${url}:`, error.message);
             // Optionally log more details: error.response?.data
             throw error;
         }

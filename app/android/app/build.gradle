@@ -81,7 +81,7 @@ android {
 
     // Read SERVER_URL from .env file
     def envFile = file("../../.env")
-    def serverUrl = "http://172.31.44.35:5000" // fallback default
+    def serverUrl = "http://localhost:5000" // fallback default
     if (envFile.exists()) {
         envFile.eachLine { line ->
             if (line.startsWith("SERVER_URL=")) {

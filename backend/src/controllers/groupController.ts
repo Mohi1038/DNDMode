@@ -39,7 +39,7 @@ interface Group {
     };
 }
 
-let broadcastGroupUpdate: (group: Group) => void = () => {};
+let broadcastGroupUpdate: (group: Group) => void = () => { };
 
 export const setGroupBroadcaster = (broadcaster: (group: Group) => void) => {
     broadcastGroupUpdate = broadcaster;

@@ -19,6 +19,10 @@ class NotificationModule(
 
     override fun getName(): String = MODULE_NAME
 
+    override fun getConstants(): MutableMap<String, Any> = mutableMapOf(
+        "SERVER_URL" to BuildConfig.SERVER_URL
+    )
+
     @ReactMethod
     fun openListenerSettings() {
         val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {

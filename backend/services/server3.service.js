@@ -19,10 +19,12 @@ class Server3Service {
         const url = `${baseUrl}/generate_daily_routine`; // Or whatever the exact path is on SERVER_3
 
         try {
-            const response = await axios.post(url, mergedPayload);
+            console.log(`[Server3Service] Sending payload to ${url}...`);
+            const response = await axios.post(url, mergedPayload, { timeout: 60000 });
+            console.log(`[Server3Service] Received response from SERVER_3.`);
             return response.data;
         } catch (error) {
-            console.error('[Server3Service] Error generating timetable:', error.message);
+            console.error(`[Server3Service] Error generating timetable at ${url}:`, error.message);
             throw error;
         }
     }

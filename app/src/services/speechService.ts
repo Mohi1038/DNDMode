@@ -1,10 +1,10 @@
 import { NativeModules, DeviceEventEmitter, PermissionsAndroid, Platform } from 'react-native';
 import type { EmitterSubscription } from 'react-native';
 import { audioPlayerService } from './audioPlayerService';
+import { API_CONFIG } from '../config/apiConfig';
 
 const { SpeechToTextModule } = NativeModules;
 
-const SERVER_URL = 'http://172.31.44.35:5000';
 const WAKE_WORD = 'hey diddy';
 
 type State = 'IDLE' | 'WAITING_FOR_WAKE_WORD' | 'LISTENING_FOR_COMMAND';
@@ -133,7 +133,7 @@ class SpeechService {
     private async queryAndPlay(query: string): Promise<void> {
         try {
             console.log('[SpeechService] Querying agent...');
-            const response = await fetch(`${SERVER_URL}/api/agent/query`, {
+            const response = await fetch(`${API_CONFIG.BASE_URL}/api/agent/query`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query }),

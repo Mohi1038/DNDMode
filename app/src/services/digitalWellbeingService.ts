@@ -1,8 +1,7 @@
 import { NativeModules } from 'react-native';
+import { API_CONFIG } from '../config/apiConfig';
 
 const { DigitalWellbeingModule } = NativeModules;
-
-const SERVER_URL = 'http://172.31.44.35:5000';
 
 interface UsageStat {
     packageName: string;
@@ -40,7 +39,7 @@ class DigitalWellbeingService {
                 return;
             }
 
-            const response = await fetch(`${SERVER_URL}/api/digital-wellbeing/ingest`, {
+            const response = await fetch(`${API_CONFIG.BASE_URL}/api/digital-wellbeing/ingest`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ usageStats: stats }),
