@@ -59,7 +59,8 @@ export default function GroupDashboardScreen({ groupId, userName, onExit }: Grou
                 const wsProtocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
                 return `${wsProtocol}//${parsed.host}/ws/groups?groupId=${encodeURIComponent(groupId)}&userName=${encodeURIComponent(userName)}`;
             } catch {
-                return `ws://localhost:5000/ws/groups?groupId=${encodeURIComponent(groupId)}&userName=${encodeURIComponent(userName)}`;
+                const defaultHost = API_CONFIG.BASE_URL.replace(/^https?:\/\//, '');
+                return `ws://${defaultHost}/ws/groups?groupId=${encodeURIComponent(groupId)}&userName=${encodeURIComponent(userName)}`;
             }
         })();
 
